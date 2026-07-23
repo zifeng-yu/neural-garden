@@ -15,6 +15,7 @@ import chromadb
 
 from config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY, PILOT_DATASET_PATH
 from src.embedding.getEmbedding import get_embedding
+from src.vector_store.reset import reset
 
 
 def load_document(file_path: str) -> str:
@@ -106,6 +107,8 @@ def index_directory(dir_path: str, persist_dir: str):
 
     print(f"📂 发现 {len(md_files)} 个 Markdown 文件\n")
 
+    # 测试阶段，先reset chromaDB
+    reset()
     for filename in md_files:
         file_path = os.path.join(dir_path, filename)
         index_file(file_path, persist_dir)
