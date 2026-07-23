@@ -1,12 +1,13 @@
 # Neural Garden 配置文件
 
 dashscope:
-  api_key: "your-api-key-here"
-  embedding_model: "text-embedding-v3"
-  llm_model: "qwen-plus"
+  api_key: ${API_KEY}
+  embedding_model: "text-embedding-v1"
+  llm_model: "qwen3.5-plus"
 
 chroma:
-  persist_directory: "./data/chroma"
+  persist_directory: "data/chroma"
+  table_name: "knowledge"
 
 pilot_dataset:
-  path: "./data/pilot"
+  path: "data/pilot"
