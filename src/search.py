@@ -44,12 +44,17 @@ def print_results(results, query):
     print("─" * 40)
 
     if results["documents"] and results["documents"][0]:
-        for i, (doc, meta) in enumerate(
-            zip(results["documents"][0], results["metadatas"][0]), 1
+        for i, (doc, meta, distances) in enumerate(
+            zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0],
+            ),
+            1,
         ):
             source = meta.get("source", "unknown")
-            print(f"[{i}] {source}")
-            print(f"    {doc[:200]}...")
+            print(f"[{i}] {source}  距离： {distances}")
+            print(f"    {doc[:50]}...")
             print()
     else:
         print("暂无结果，请先运行索引命令添加知识。")
