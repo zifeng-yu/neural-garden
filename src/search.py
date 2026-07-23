@@ -31,7 +31,7 @@ def search(query: str, top_k: int = 3):
 
     # 3. 查询（骨架版本，后续课程实现完整 Embedding 流程）
     embedding = get_embedding(query)
-    results = collection.query(query_embeddings=[embedding, embedding], n_results=top_k)
+    results = collection.query(query_embeddings=[embedding], n_results=top_k)
     print(f"查询结果 {results}")
     # 4. 格式化输出
     print_results(results, query)
