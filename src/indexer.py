@@ -8,6 +8,7 @@ Lesson 01: 骨架版本（支持单文件导入）
 - 调用 DashScope Embedding API
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -52,28 +53,31 @@ def index_file(file_path: str, persist_dir: str):
 
     logger.info(f"📄 正在索引：{source}")
 
-    # 2. 获取知识单元
-    knowledgeUnit: Knowledge_unit = get_knowledge_unit(content=content, source=source)
+    # 2. 初始化 Chroma 客户端
+    client = chromadb.PersistentClient(path=persist_dir)
+    collection = client.get_or_create_collection(CHROMA_TABLE_NAME)
+
+    # 3. 检查是否已存在
+    uuid = hashlib.md5(f"{source}:{content}".encode()).hexdigest()
+    existing = collection.get(ids=[uuid])
+    if existing["ids"]:
+        logger.info(f"⏭️  已存在，跳过：{source}")
+        return
+
+    # 4. 获取知识单元
+    knowledgeUnit: Knowledge_unit = get_knowledge_unit(
+        content=content, source=source, uuid=uuid
+    )
     if knowledgeUnit is None:
         logger.info(f"知识提取失败，source {source}")
         return
 
-    # 3. 调用 Embedding API
+    # 5. 调用 Embedding API
     logger.info(f"🔢 正在生成向量...")
     embedding = get_embedding(knowledgeUnit.to_embedding_text())
     if embedding is None:
-        print(f"⚠️  跳过 {source}（Embedding 失败）")
+        logger.info(f"⚠️  跳过 {source}（Embedding 失败）")
         return
-
-    # 4. 初始化 Chroma 客户端
-    client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_or_create_collection(CHROMA_TABLE_NAME)
-
-    # 5. 检查是否已存在
-    # existing = collection.get(ids=[doc_id])
-    # if existing["ids"]:
-    #     print(f"⏭️  已存在，跳过：{source}")
-    #     return
 
     # logger.info(f"向量返回：{embedding}")
     # 6. 添加到向量库
@@ -112,7 +116,7 @@ def index_directory(dir_path: str, persist_dir: str):
     logger.info(f"📂 发现 {len(md_files)} 个 Markdown 文件\n")
 
     # 测试阶段，先reset chromaDB
-    reset()
+    # reset()
     for filename in md_files:
         file_path = os.path.join(dir_path, filename)
         index_file(file_path, persist_dir)

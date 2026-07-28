@@ -38,10 +38,10 @@ def search(query: str, top_k: int = 3):
     results = collection.query(query_embeddings=[embedding], n_results=top_k)
     logger.info(f"查询结果 {results}")
     # 4. 格式化输出
-    print_results(results, query)
+    log_results(results, query)
 
 
-def print_results(results, query):
+def log_results(results, query):
     """格式化输出搜索结果"""
     logger.info(f"\n🔍 搜索查询：{query}")
     logger.info("\n📌 匹配结果 (Top 3):")
@@ -73,4 +73,4 @@ if __name__ == "__main__":
         query = " ".join(sys.argv[1:])
         search(query)
     else:
-        print("用法：python -m src.search <查询内容>")
+        logger.info("用法：python -m src.search <查询内容>")

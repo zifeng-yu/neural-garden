@@ -24,7 +24,7 @@ class Knowledge_unit:
         return f"{self.title}。{self.summary}。关键词：{', '.join(self.keywords)}"
 
 
-def get_knowledge_unit(content: str, source: str) -> Knowledge_unit | None:
+def get_knowledge_unit(content: str, source: str, uuid: str) -> Knowledge_unit | None:
     try:
         response_extractor: Response_extractor = extractor_by_llm(content)
         return Knowledge_unit(
@@ -33,9 +33,7 @@ def get_knowledge_unit(content: str, source: str) -> Knowledge_unit | None:
             keywords=response_extractor.keywords,
             content=content,
             source=source,
-            unit_id=hashlib.md5(
-                f"{source}:{response_extractor.title}".encode()
-            ).hexdigest()[:16],
+            unit_id=uuid,
         )
     except Exception as e:
         logger.exception(f"获取知识单元失败，失败原因 {e}")

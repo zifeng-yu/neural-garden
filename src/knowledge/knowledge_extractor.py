@@ -34,6 +34,8 @@ def extractor_by_llm(content: str) -> Response_extractor:
 3. keywords: 3-10 个关键词（最能代表文档主题的词汇）
 4. 如果遇到无效文章输入,title的值为"无效文章输入"
 5. 提取后输出json的key:title,summary,keywords三者不可缺少
+5. 不允许根据常识补充文档没有出现的信息
+6. summary必须只基于原文,不得推测
 
 【输出格式】
 严格输出 JSON,不要任何其他文字,例子如下：
@@ -51,11 +53,11 @@ def extractor_by_llm(content: str) -> Response_extractor:
     # dashscope.base_http_api_url = (
     #     "https://ws-nbtll7yjauor7eld.cn-beijing.maas.aliyuncs.com/api/v1"
     # )
-    logger.info(prompt)
+    # logger.info(prompt)
     response = MultiModalConversation.call(
         model=LLM_MODEL,
         messages=prompt,
-        temperature=0.0,
+        temperature=0.1,
         enable_thinking=False,
         response_format={"type": "json_object"},
     )
