@@ -1,11 +1,13 @@
 """
 Neural Garden - 知识单元索引器
-Lesson 01: 骨架版本（支持单文件导入）
+Lesson 02.1: 生产级版本（支持增量更新）
 
-完整功能将在 Lesson 02 实现：
+功能：
 - 批量导入 pilot/ 目录下所有 .md 文件
 - 知识单元提取（标题、摘要、关键词）
-- 调用 DashScope Embedding API
+- 调用 DashScope Embedding API 向量化
+- 增量更新检测（基于 content_hash，避免重复索引）
+- 支持 --reset 参数清空向量库
 """
 
 import hashlib

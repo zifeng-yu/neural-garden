@@ -27,14 +27,35 @@ cp .env.example .env
 将你的 Markdown 笔记放入 `data/pilot/` 目录，然后运行：
 
 ```bash
+# 正常索引（增量更新，跳过未变化的文件）
 python -m src.indexer
+
+# 清空向量库后重新索引
+python -m src.indexer --reset
 ```
+
+**增量更新机制**：
+- 首次运行：全量索引所有文件
+- 后续运行：自动检测文件变化，只更新有变化的文件
+- 基于 `content_hash` 判断内容是否变化，避免重复调用 LLM 和 Embedding API
 
 ### 4. 搜索知识
 
 ```bash
 python -m src.search "什么是 Neural Garden"
 ```
+
+---
+
+## 课程进度
+
+| 课次 | 主题 | 状态 | 核心功能 |
+|------|------|------|---------|
+| Lesson 01 | 5 分钟跑起来 | ✅ 完成 | 项目骨架 + Hello World 搜索 |
+| Lesson 02 | 知识单元提取 | ✅ 完成 | LLM 提取 + 向量化 + 增量更新 |
+| Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 + --reset 参数 |
+| Lesson 03 | 向量搜索入门 | ⏳ 待推送 | Chroma 搜索 + 相似度计算 |
+| Lesson 04 | 概念图构建 | ⏳ 待推送 | NetworkX + 关系发现 |
 
 ---
 
@@ -120,11 +141,29 @@ python -m src.search "<查询内容>" [top_k]
 
 | 组件 | 技术 |
 |------|------|
-| 向量存储 | ChromaDB |
-| Embedding | DashScope text-embedding-v1 |
-| LLM | DashScope qwen3.5-plus |
+| 向量存储 | ChromaDB（SQLite + HNSW 索引） |
+| Embedding | DashScope text-embedding-v1（768 维） |
+| LLM | DashScope qwen3.5-plus（知识单元提取） |
 | 配置管理 | PyYAML + python-dotenv |
+| 日志系统 | Python logging（滚动文件 + 分级控制） |
 | 语言 | Python 3.9+ |
+
+---
+
+## 核心特性
+
+### 增量更新
+
+- **基于文件名的稳定 ID**：同一文件修改时 ID 不变，支持更新而非新增
+- **内容哈希检测**：通过 `content_hash` 判断内容是否变化，未变化则跳过
+- **节省成本**：避免重复调用 LLM 和 Embedding API
+
+### 生产级设计
+
+- **Pydantic 验证**：LLM 输出经过严格验证（字段类型、长度、有效性）
+- **防幻觉 Prompt**：明确要求"不得根据常识补充文档没有的信息"
+- **日志系统**：生产级日志配置（控制台 + 滚动文件 + 错误日志）
+- **命令行参数**：支持 `--reset` 按需清空向量库
 
 ---
 
