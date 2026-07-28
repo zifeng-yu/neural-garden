@@ -58,9 +58,10 @@ def index_file(file_path: str, persist_dir: str):
     collection = client.get_or_create_collection(CHROMA_TABLE_NAME)
 
     # 3. 检查是否已存在
-    uuid = hashlib.md5(f"{source}:{content}".encode()).hexdigest()
-    existing = collection.get(ids=[uuid])
-    if existing["ids"]:
+    uuid = hashlib.md5(f"{source}".encode()).hexdigest()
+    content_hash = hashlib.md5(f"{content}".encode()).hexdigest()
+    existing = collection.get(ids=[uuid], include=["metadatas"])
+    if existing["ids"] and existing["metadatas"][0].get("content_hash") == content_hash:
         logger.info(f"⏭️  已存在，跳过：{source}")
         return
 
@@ -91,6 +92,7 @@ def index_file(file_path: str, persist_dir: str):
                 "title": knowledgeUnit.title,
                 "keywords": json.dumps(knowledgeUnit.keywords),
                 "full_content": content,  # 可选：存储全文用于后续检索
+                "content_hash": content_hash,
             }
         ],
     )
