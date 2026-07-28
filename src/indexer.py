@@ -18,7 +18,7 @@ import chromadb
 import src.config.logging_config as logging_config
 from src.config.config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY, PILOT_DATASET_PATH
 from src.embedding.getEmbedding import get_embedding
-from src.knowledge.knowledgeUnit import Knowledge_unit, get_knowledge_unit
+from src.knowledge.knowledgeUnit import KnowledgeUnit, extract_knowledge_unit
 from src.vector_store.reset import reset
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def index_file(file_path: str, persist_dir: str):
         return
 
     # 4. 获取知识单元
-    knowledgeUnit: Knowledge_unit = get_knowledge_unit(
+    knowledgeUnit: KnowledgeUnit = extract_knowledge_unit(
         content=content, source=source, uuid=uuid
     )
     if knowledgeUnit is None:
@@ -117,8 +117,6 @@ def index_directory(dir_path: str, persist_dir: str):
 
     logger.info(f"📂 发现 {len(md_files)} 个 Markdown 文件\n")
 
-    # 测试阶段，先reset chromaDB
-    # reset()
     for filename in md_files:
         file_path = os.path.join(dir_path, filename)
         index_file(file_path, persist_dir)
@@ -127,6 +125,11 @@ def index_directory(dir_path: str, persist_dir: str):
 
 
 if __name__ == "__main__":
+    import sys
+
+    args = sys.argv[1:]
+    if "--reset" in args:
+        reset()
 
     # 配置路径
     base_dir = os.path.dirname(os.path.dirname(__file__))

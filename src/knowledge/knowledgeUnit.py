@@ -1,6 +1,6 @@
 import hashlib
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import src.config.logging_config as logging_config
 from src.knowledge.knowledge_extractor import Response_extractor, extractor_by_llm
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class Knowledge_unit:
+class KnowledgeUnit:
     """知识单元数据结构"""
 
     title: str
@@ -19,15 +19,21 @@ class Knowledge_unit:
     source: str
     unit_id: str
 
+    def to_dict(self) -> dict:
+        """转换为字典（用于存储）"""
+        return asdict(self)
+
     def to_embedding_text(self) -> str:
         """生成用于向量化的文本（标题 + 摘要 + 关键词）"""
         return f"{self.title}。{self.summary}。关键词：{', '.join(self.keywords)}"
 
 
-def get_knowledge_unit(content: str, source: str, uuid: str) -> Knowledge_unit | None:
+def extract_knowledge_unit(
+    content: str, source: str, uuid: str
+) -> KnowledgeUnit | None:
     try:
         response_extractor: Response_extractor = extractor_by_llm(content)
-        return Knowledge_unit(
+        return KnowledgeUnit(
             title=response_extractor.title,
             summary=response_extractor.summary,
             keywords=response_extractor.keywords,
