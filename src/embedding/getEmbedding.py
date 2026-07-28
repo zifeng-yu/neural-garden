@@ -1,4 +1,9 @@
-from config import API_KEY, EMBEDDING_MODEL
+import logging
+
+import src.config.logging_config as logging_config
+from src.config.config import API_KEY, EMBEDDING_MODEL
+
+logger = logging.getLogger(__name__)
 
 
 def get_embedding(text: str) -> list:
@@ -14,16 +19,19 @@ def get_embedding(text: str) -> list:
     """
     try:
         import dashscope
+        from dashscope import TextEmbedding
 
         dashscope.api_key = API_KEY
 
-        response = dashscope.TextEmbedding.call(model=EMBEDDING_MODEL, input=text)
+        response = TextEmbedding.call(model=EMBEDDING_MODEL, input=text)
 
         if response.status_code == 200:
             return response.output["embeddings"][0]["embedding"]
         else:
-            print(f"⚠️  Embedding API 调用失败：{response.code} - {response.message}")
+            logger.info(
+                f"⚠️  Embedding API 调用失败：{response.code} - {response.message}"
+            )
             return None
     except Exception as e:
-        print(f"⚠️  Embedding 调用异常：{e}")
+        logger.info(f"⚠️  Embedding 调用异常：{e}")
         return None

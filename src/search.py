@@ -3,12 +3,16 @@ Neural Garden - 搜索入口
 Lesson 01: Hello World 骨架版本
 """
 
+import logging
 import os
 
 import chromadb
 
-from config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY
+import src.config.logging_config as logging_config
+from src.config.config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY
 from src.embedding.getEmbedding import get_embedding
+
+logger = logging.getLogger(__name__)
 
 
 def search(query: str, top_k: int = 3):
@@ -27,21 +31,21 @@ def search(query: str, top_k: int = 3):
 
     # 2. 获取集合
     collection = client.get_collection(CHROMA_TABLE_NAME)
-    print(f"表集合大小 {collection.count()}")
+    logger.info(f"表集合大小 {collection.count()}")
 
     # 3. 查询（骨架版本，后续课程实现完整 Embedding 流程）
     embedding = get_embedding(query)
     results = collection.query(query_embeddings=[embedding], n_results=top_k)
-    print(f"查询结果 {results}")
+    logger.info(f"查询结果 {results}")
     # 4. 格式化输出
     print_results(results, query)
 
 
 def print_results(results, query):
     """格式化输出搜索结果"""
-    print(f"\n🔍 搜索查询：{query}")
-    print("\n📌 匹配结果 (Top 3):")
-    print("─" * 40)
+    logger.info(f"\n🔍 搜索查询：{query}")
+    logger.info("\n📌 匹配结果 (Top 3):")
+    logger.info("─" * 40)
 
     if results["documents"] and results["documents"][0]:
         for i, (doc, meta, distances) in enumerate(
@@ -53,14 +57,13 @@ def print_results(results, query):
             1,
         ):
             source = meta.get("source", "unknown")
-            print(f"[{i}] {source}  距离： {distances}")
-            print(f"    {doc[:50]}...")
-            print()
+            logger.info(f"[{i}] {source}  距离： {distances}")
+            logger.info(f"    {doc[:150]}...")
     else:
-        print("暂无结果，请先运行索引命令添加知识。")
+        logger.info("暂无结果，请先运行索引命令添加知识。")
 
-    print("─" * 40)
-    print("✅ 搜索完成")
+    logger.info("─" * 40)
+    logger.info("✅ 搜索完成")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
@@ -10,7 +11,7 @@ load_dotenv()
 
 def _load_config():
 
-    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
 
     with open(config_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -38,3 +39,4 @@ EMBEDDING_MODEL = CONFIG["dashscope"]["embedding_model"]
 PERSIST_DIRECTORY = CONFIG["chroma"]["persist_directory"]
 CHROMA_TABLE_NAME = CONFIG["chroma"]["table_name"]
 PILOT_DATASET_PATH = CONFIG["pilot_dataset"]["path"]
+LLM_MODEL = CONFIG["dashscope"]["llm_model"]
