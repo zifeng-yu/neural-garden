@@ -1,12 +1,15 @@
 """
 知识提取器模块的单元测试
 """
+
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from pydantic import ValidationError
+
 from src.knowledge.knowledge_extractor import (
-    Response_extractor,
     LLMException,
+    Response_extractor,
     extractor_by_llm,
 )
 
@@ -91,18 +94,22 @@ class TestExtractorByLLM:
         """测试成功提取"""
         # 准备 Mock 响应（正确的嵌套结构）
         mock_message = MagicMock()
-        mock_message.content = [{"text": '{"title": "Mock 标题", "summary": "这是一个 Mock 摘要，长度足够满足要求。", "keywords": ["mock", "test"]}'}]
-        
+        mock_message.content = [
+            {
+                "text": '{"title": "Mock 标题", "summary": "这是一个 Mock 摘要，长度足够满足要求。", "keywords": ["mock", "test"]}'
+            }
+        ]
+
         mock_choice = MagicMock()
         mock_choice.message = mock_message
-        
+
         mock_output = MagicMock()
         mock_output.choices = [mock_choice]
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.output = mock_output
-        
+
         mock_call.return_value = mock_response
 
         # 执行测试
@@ -138,18 +145,20 @@ class TestExtractorByLLM:
         """测试无效文章输入"""
         # 准备 Mock 响应（返回无效文章标记）
         mock_message = MagicMock()
-        mock_message.content = [{"text": '{"title": "无效文章输入", "summary": "", "keywords": []}'}]
-        
+        mock_message.content = [
+            {"text": '{"title": "无效文章输入", "summary": "", "keywords": []}'}
+        ]
+
         mock_choice = MagicMock()
         mock_choice.message = mock_message
-        
+
         mock_output = MagicMock()
         mock_output.choices = [mock_choice]
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.output = mock_output
-        
+
         mock_call.return_value = mock_response
 
         # 执行测试并验证异常
@@ -162,17 +171,17 @@ class TestExtractorByLLM:
         # 准备 Mock 响应（返回无效 JSON）
         mock_message = MagicMock()
         mock_message.content = [{"text": "invalid json"}]
-        
+
         mock_choice = MagicMock()
         mock_choice.message = mock_message
-        
+
         mock_output = MagicMock()
         mock_output.choices = [mock_choice]
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.output = mock_output
-        
+
         mock_call.return_value = mock_response
 
         # 执行测试并验证异常
@@ -189,14 +198,18 @@ class TestExtractorByLLM:
 
         # 成功的响应
         mock_message = MagicMock()
-        mock_message.content = [{"text": '{"title": "成功标题", "summary": "成功的摘要，长度足够。", "keywords": ["success"]}'}]
-        
+        mock_message.content = [
+            {
+                "text": '{"title": "成功标题", "summary": "成功的摘要，长度足够。", "keywords": ["success"]}'
+            }
+        ]
+
         mock_choice = MagicMock()
         mock_choice.message = mock_message
-        
+
         mock_output = MagicMock()
         mock_output.choices = [mock_choice]
-        
+
         mock_response_success = MagicMock()
         mock_response_success.status_code = 200
         mock_response_success.output = mock_output
@@ -217,18 +230,20 @@ class TestExtractorByLLM:
         """测试 Prompt 结构正确性"""
         # 准备 Mock 响应
         mock_message = MagicMock()
-        mock_message.content = [{"text": '{"title": "标题", "summary": "摘要", "keywords": ["key"]}'}]
-        
+        mock_message.content = [
+            {"text": '{"title": "标题", "summary": "摘要", "keywords": ["key"]}'}
+        ]
+
         mock_choice = MagicMock()
         mock_choice.message = mock_message
-        
+
         mock_output = MagicMock()
         mock_output.choices = [mock_choice]
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.output = mock_output
-        
+
         mock_call.return_value = mock_response
 
         # 执行测试
@@ -248,18 +263,20 @@ class TestExtractorByLLM:
         """测试 temperature 参数设置"""
         # 准备 Mock 响应
         mock_message = MagicMock()
-        mock_message.content = [{"text": '{"title": "标题", "summary": "摘要", "keywords": ["key"]}'}]
-        
+        mock_message.content = [
+            {"text": '{"title": "标题", "summary": "摘要", "keywords": ["key"]}'}
+        ]
+
         mock_choice = MagicMock()
         mock_choice.message = mock_message
-        
+
         mock_output = MagicMock()
         mock_output.choices = [mock_choice]
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.output = mock_output
-        
+
         mock_call.return_value = mock_response
 
         # 执行测试

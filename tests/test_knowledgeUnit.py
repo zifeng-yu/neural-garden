@@ -1,7 +1,9 @@
 """
 知识单元模块的单元测试
 """
+
 import pytest
+
 from src.knowledge.knowledgeUnit import KnowledgeUnit
 
 
