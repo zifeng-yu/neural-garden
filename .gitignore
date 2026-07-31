@@ -47,3 +47,6 @@ data/*.sqlite
 
 # 教程文档（存储在父目录，不提交到仓库）
 tutorials/*.md
+
+# llm相关原理
+llm/
