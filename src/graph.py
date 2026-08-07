@@ -1,235 +1,203 @@
 """
-Neural Garden - 概念图构建模块
-Lesson 04: 概念图构建
+构建知识图
+1. 获取文档
+2. 构建图
+3. 查询
 """
 
-import networkx as nx
-import matplotlib
-matplotlib.use('Agg')  # 非交互式后端
-import matplotlib.pyplot as plt
-from typing import List, Dict, Tuple, Optional
-import json
-import os
 import logging
+import os
+from typing import Any
+
+import networkx as nx
+
+import src.config.logging_config as logging_config
+from src.config.config import PILOT_DATASET_PATH
+from src.knowledgeGraph.knowledge_graph import (
+    KnowledgeDocument,
+    NodeAttribute,
+    NodeType,
+    build_concept_graph,
+    search_by_node,
+)
+from src.util.graphStats import get_DiGraph_stats
+from src.util.visualizeGraph import visualize_graph
 
 logger = logging.getLogger(__name__)
 
 
-def extract_concepts_from_text(text: str, llm_client=None) -> List[str]:
+def load_documents(file_path: str) -> str:
     """
-    从文本中提取概念
-    
+    读取 Markdown 文件内容
+
     Args:
-        text: 输入文本
-        llm_client: LLM 客户端（可选）
-        
+        file_path: 文件路径
+
     Returns:
-        概念列表
+        文件内容字符串
     """
-    # 使用 LLM 提取概念
-    prompt = f"""从以下文本中提取关键概念（名词短语），输出 JSON 列表格式。
-
-文本：
-{text[:2000]}  # 限制长度
-
-输出格式（只输出 JSON 列表）：
-["概念 1", "概念 2", "概念 3", ...]
-"""
-    
-    # 调用 LLM（简化示例，实际项目中使用配置的 LLM）
-    # response = llm_client.generate(prompt)
-    # concepts = json.loads(response)
-    
-    # 教学演示：返回模拟结果
-    concepts = ["概念 A", "概念 B", "概念 C"]
-    
-    return concepts
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.read()
 
 
-def extract_relations_from_text(text: str, concepts: List[str], llm_client=None) -> List[Tuple]:
+def index_directory(dir_path: str) -> list[KnowledgeDocument] | None:
     """
-    从文本中提取概念之间的关系
-    
+    批量索引目录下所有 .md 文件
+
     Args:
-        text: 输入文本
-        concepts: 概念列表
-        llm_client: LLM 客户端（可选）
-        
-    Returns:
-        关系列表 [(概念 1, 关系类型，概念 2), ...]
+        dir_path: 目录路径
     """
-    prompt = f"""从以下文本中提取概念之间的关系。
+    md_files = [f for f in os.listdir(dir_path) if f.endswith(".md")]
 
-已知概念：{concepts}
+    if not md_files:
+        print(f"⚠️  未找到 .md 文件：{dir_path}")
+        return
 
-文本：
-{text[:2000]}
+    logger.info(f"📂 发现 {len(md_files)} 个 Markdown 文件\n")
 
-输出格式（只输出 JSON 列表）：
-[["概念 1", "关系类型", "概念 2"], ...]
+    result = []
+    for filename in md_files:
+        file_path = os.path.join(dir_path, filename)
+        knowledge_document = KnowledgeDocument(
+            title=os.path.basename(file_path), content=load_documents(file_path)
+        )
+        result.append(knowledge_document)
 
-关系类型示例：是一种、包括、影响、导致、相关
-"""
-    
-    # 调用 LLM（简化示例）
-    # response = llm_client.generate(prompt)
-    # relations = json.loads(response)
-    
-    # 教学演示：返回模拟结果
-    relations = [("概念 A", "相关", "概念 B")]
-    
-    return relations
+    logger.info(f"\n✅ 批量生成文件对象，共 {len(md_files)} 个文件")
+    return result
 
 
-def build_concept_graph(documents: List[Dict], llm_client=None) -> nx.Graph:
-    """
-    从文档列表构建概念图
-    
-    Args:
-        documents: 文档列表，每个文档包含 {'title': str, 'content': str}
-        llm_client: LLM 客户端（可选）
-        
-    Returns:
-        NetworkX 图对象
-    """
-    G = nx.Graph()
-    
-    for doc in documents:
-        title = doc.get('title', '未知')
-        content = doc.get('content', '')
-        full_text = f"{title}\n{content}"
-        
-        # 提取概念
-        concepts = extract_concepts_from_text(full_text, llm_client)
-        
-        # 添加节点
-        for concept in concepts:
-            G.add_node(concept, source=title)
-        
-        # 提取关系并添加边
-        relations = extract_relations_from_text(full_text, concepts, llm_client)
-        for source, relation, target in relations:
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, relation=relation)
-    
-    return G
+def build_graph(dir_path: str) -> nx.DiGraph | None:
+    knowledgeDocuments = index_directory(dir_path)
+    if knowledgeDocuments is None:
+        return None
+    return build_concept_graph(knowledgeDocuments)
 
 
-def visualize_graph(G: nx.Graph, output_path: str, title: str = "概念图"):
-    """
-    可视化概念图
-    
-    Args:
-        G: NetworkX 图对象
-        output_path: 输出图片路径
-        title: 图标题
-    """
-    plt.figure(figsize=(12, 10))
-    
-    # 使用 spring_layout 布局
-    pos = nx.spring_layout(G, k=0.5, iterations=50)
-    
-    # 绘制节点
-    nx.draw_networkx_nodes(G, pos, node_size=500, node_color='lightblue', alpha=0.8)
-    
-    # 绘制边
-    nx.draw_networkx_edges(G, pos, edge_color='gray', alpha=0.5)
-    
-    # 绘制标签
-    nx.draw_networkx_labels(G, pos, font_size=10, font_weight='bold')
-    
-    # 绘制边标签（关系类型）
-    edge_labels = nx.get_edge_attributes(G, 'relation')
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
-    
-    plt.title(title, fontsize=16)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    logger.info(f"✅ 概念图已保存至：{output_path}")
+def graph_png(G: nx.DiGraph):
+    # 可视化
+    visualize_graph(G, "graphPNG//", "Pilot Dataset 概念图")
 
 
-def search_by_concept(G: nx.Graph, concept: str, depth: int = 2) -> List[str]:
-    """
-    按概念搜索关联概念
-    
-    Args:
-        G: NetworkX 图对象
-        concept: 起始概念
-        depth: 搜索深度（默认 2 层）
-        
-    Returns:
-        关联概念列表
-    """
-    if concept not in G.nodes:
-        logger.warning(f"⚠️  概念 '{concept}' 不在图中")
-        return []
-    
-    # 使用 BFS 搜索
-    related_concepts = []
-    for node in nx.single_source_shortest_path_length(G, concept, cutoff=depth):
-        if node != concept:
-            related_concepts.append(node)
-    
-    return related_concepts
+def log_stats(G: nx.DiGraph):
+    # 分析统计信息
+    digraphtStats = get_DiGraph_stats(G)
+    logger.info(digraphtStats.to_stats_text())
 
 
-def get_graph_stats(G: nx.Graph) -> Dict:
-    """
-    获取图的统计信息
-    
-    Args:
-        G: NetworkX 图对象
-        
-    Returns:
-        统计信息字典
-    """
-    stats = {
-        "节点数": G.number_of_nodes(),
-        "边数": G.number_of_edges(),
-        "密度": nx.density(G),
-        "连通分量数": nx.number_connected_components(G),
-        "平均度": sum(dict(G.degree()).values()) / G.number_of_nodes() if G.number_of_nodes() > 0 else 0,
-    }
-    
-    # 找到度最高的节点（最核心的概念）
-    if G.number_of_nodes() > 0:
-        degree_dict = dict(G.degree())
-        top_concepts = sorted(degree_dict.items(), key=lambda x: x[1], reverse=True)[:5]
-        stats["核心概念 (Top 5)"] = top_concepts
-    
-    return stats
+def search(G: nx.DiGraph, concept: str, depth: int) -> list[dict[str, Any]]:
+    return search_by_node(G, concept, depth)
 
 
 if __name__ == "__main__":
-    # 测试代码
-    print("=== Neural Garden 概念图模块测试 ===\n")
-    
-    # 准备测试数据
-    documents = [
-        {'title': '日本负利率政策', 'content': '负利率是一种货币政策，由央行实施，影响银行利润和信贷政策'},
-        {'title': '量化宽松', 'content': '量化宽松是一种货币政策，包括购买国债，影响央行资产负债表'},
-        {'title': '通胀目标', 'content': '通胀目标是货币政策的目标之一，央行通过调整利率实现通胀目标'},
-    ]
-    
-    # 构建概念图
-    print("正在构建概念图...")
-    G = build_concept_graph(documents)
-    
-    # 获取统计信息
-    stats = get_graph_stats(G)
-    print('\n=== 概念图统计 ===')
-    for k, v in stats.items():
-        print(f'{k}: {v}')
-    
-    # 可视化
-    output_path = 'test_concept_graph.png'
-    visualize_graph(G, output_path, '测试概念图')
-    
-    # 搜索关联概念
-    related = search_by_concept(G, '货币政策', depth=2)
-    print(f'\n与"货币政策"相关的概念（2 层）: {related}')
-    
-    print('\n✅ 测试完成')
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    pilot_dir = os.path.join(base_dir, PILOT_DATASET_PATH)
+    knowledge_graph = build_graph(pilot_dir)
+    if knowledge_graph is not None:
+        graph_png(knowledge_graph)
+        log_stats(knowledge_graph)
+
+    # 以下为test
+    if knowledge_graph is not None:
+        count = 0
+        for u, v in knowledge_graph.edges():
+            if (
+                knowledge_graph.nodes[u].get(NodeAttribute.TYPE.value)
+                == NodeType.CONCEPT
+                and knowledge_graph.nodes[v].get(NodeAttribute.TYPE.value)
+                == NodeType.CONCEPT
+            ):
+                count += 1
+        logger.info(f"概念相连 数量 {count}")
+
+        from src.util.getHashValue import get_hash_value as hash
+
+        titles = [
+            "01-金融深潜 - 日本负利率.md",
+            "02-算法 - 重复检测.md",
+            "03-生物学 - 昂贵的代价.md",
+            "04-公众号 - 花自己的钱.md",
+            "05-认知科学 - 专家预测.md",
+        ]
+        titles_concept_map = {}
+        for title in titles:
+            hash_value = hash(title)
+            doc_hava_concepts = list(knowledge_graph.successors(hash_value))
+            titles_concept_map[title] = doc_hava_concepts
+        logger.info(titles_concept_map)
+        from collections import defaultdict
+
+        concept_in_titles = defaultdict(list)
+        for k, v in titles_concept_map.items():
+            for concept in v:
+                concept_in_titles[concept].append(k)
+
+        logger.info(f"概念数量:{len(concept_in_titles)}")
+        logger.info(concept_in_titles)
+        for k, v in concept_in_titles.items():
+            if len(v) > 1:
+                logger.info(f"{k} <- {v}")
+
+        paths = nx.single_source_shortest_path(
+            knowledge_graph, titles_concept_map[titles[0]][0], cutoff=2
+        )
+        for node, path in paths.items():
+            logger.info(f"node:{node}, path:{path}")
+            for i in range(len(path) - 1):
+                u = path[i]
+                v = path[i + 1]
+
+                edge_data = knowledge_graph.get_edge_data(u, v)
+
+                logger.info(f"{u} -> {v} ,{edge_data.get("relation")}")
+
+        from collections import deque
+
+        result = []
+        hash_value = hash(titles[2])
+        queue = deque([(hash_value, [hash_value])])
+
+        while queue:
+            node, path = queue.popleft()
+
+            if len(path) - 1 >= 5:
+                continue
+
+            for next_node in knowledge_graph.successors(node):
+                new_path = path + [next_node]
+                result.append(new_path)
+
+                queue.append((next_node, new_path))
+
+        logger.info([x for x in result if len(x) > 2])
+
+        # for title in titles:
+        #     hash_value = hash(title)
+        #     doc_hava_concepts = list(knowledge_graph.successors(hash_value))
+        #     # logger.info(f"{title} 拥有的概念：{doc_hava_concepts}")
+        #     # 文档 -> 概念 遍历
+        #     for concept in doc_hava_concepts:
+        #         search_result = search(knowledge_graph, concept, 10)
+        #         # logger.info(f"{concept}能走到的概念集合:{search_result}")
+        #         # 文档 -> 概念 -> 概念 遍历
+        #         for dict in search_result:
+        #             # 概念 <- 文档
+        #             docs = knowledge_graph.predecessors(dict["id"])
+        #             related_docs = []
+        #             for doc in docs:
+        #                 if (
+        #                     knowledge_graph.nodes[doc].get(NodeAttribute.TYPE.value)
+        #                     == NodeType.DOCUMENT.value
+        #                 ):
+        #                     if (
+        #                         knowledge_graph.nodes[doc].get(
+        #                             NodeAttribute.TITLE.value
+        #                         )
+        #                         != title
+        #                     ):
+        #                         related_docs.append(
+        #                             knowledge_graph.nodes[doc].get(
+        #                                 NodeAttribute.TITLE.value
+        #                             )
+        #                         )
+        #             logger.info(f"{title} -> {concept} <- docs {related_docs}")

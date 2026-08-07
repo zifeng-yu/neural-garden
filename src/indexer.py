@@ -10,7 +10,6 @@ Lesson 02.1: 生产级版本（支持增量更新）
 - 支持 --reset 参数清空向量库
 """
 
-import hashlib
 import json
 import logging
 import os
@@ -20,7 +19,8 @@ import chromadb
 import src.config.logging_config as logging_config
 from src.config.config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY, PILOT_DATASET_PATH
 from src.embedding.getEmbedding import get_embedding
-from src.knowledge.knowledgeUnit import KnowledgeUnit, extract_knowledge_unit
+from src.knowledge.knowledgeUnit import extract_knowledge_unit
+from src.util.getHashValue import get_hash_value as hash
 from src.vector_store.reset import resetDB
 
 logger = logging.getLogger(__name__)
@@ -61,24 +61,23 @@ def index_file(file_path: str, persist_dir: str):
         name=CHROMA_TABLE_NAME, metadata={"hnsw:space": "cosine"}
     )
 
-    # 3. 检查是否已存在
-    uuid = hashlib.md5(f"{source}".encode()).hexdigest()
-    content_hash = hashlib.md5(f"{content}".encode()).hexdigest()
+    # 3. 检查是否已存在 uuid = 文件名hash , content_hash = 文件内容hash
+    #   文件名变换 一定属于新增，文章名没变 看内容 是否有变化
+    uuid = hash(source)
+    content_hash = hash(content)
     existing = collection.get(ids=[uuid], include=["metadatas"])
     if existing["ids"] and existing["metadatas"][0].get("content_hash") == content_hash:
         logger.info(f"⏭️  已存在，跳过：{source}")
         return
 
     # 4. 获取知识单元
-    knowledgeUnit: KnowledgeUnit = extract_knowledge_unit(
-        content=content, source=source, uuid=uuid
-    )
+    knowledgeUnit = extract_knowledge_unit(content=content, source=source, uuid=uuid)
     if knowledgeUnit is None:
         logger.info(f"知识提取失败，source {source}")
         return
 
     # 5. 调用 Embedding API
-    logger.info(f"🔢 正在生成向量...")
+    logger.info("🔢 正在生成向量...")
     embedding = get_embedding(knowledgeUnit.to_embedding_text())
     if embedding is None:
         logger.info(f"⚠️  跳过 {source}（Embedding 失败）")
@@ -111,7 +110,6 @@ def index_directory(dir_path: str, persist_dir: str):
     Args:
         dir_path: 目录路径
         persist_dir: Chroma 持久化目录
-        api_key: DashScope API Key
     """
     md_files = [f for f in os.listdir(dir_path) if f.endswith(".md")]
 

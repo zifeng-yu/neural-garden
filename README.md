@@ -149,6 +149,28 @@ python -m src.search "<查询内容>" [top_k]
 | 语言 | Python 3.9+ |
 
 ---
+## 最终架构
+             Query
+               |
+          Embedding
+               |
+          ChromaDB
+               |
+          TopK Docs
+               |
+            UUID
+               |
+          GraphRAG
+               |
+        Concepts Expansion
+               |
+       Related Documents
+               |
+        Reranker
+               |
+             LLM
+             
+---
 
 ## 核心特性
 

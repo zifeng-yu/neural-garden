@@ -8,13 +8,10 @@ from pydantic import BaseModel, Field
 
 import src.config.logging_config as logging_config
 from src.config.config import API_KEY, LLM_MODEL
+from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
 logger = logging.getLogger(__name__)
-
-
-class LLMException(Exception):
-    pass
 
 
 class Response_extractor(BaseModel):
