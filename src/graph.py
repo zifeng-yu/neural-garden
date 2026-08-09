@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
                 edge_data = knowledge_graph.get_edge_data(u, v)
 
-                logger.info(f"{u} -> {v} ,{edge_data.get("relation")}")
+                logger.info(f"{u} -> {v} ,{edge_data.get('relation')}")
 
         from collections import deque
 
