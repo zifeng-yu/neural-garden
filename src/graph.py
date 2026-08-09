@@ -90,6 +90,10 @@ def search(G: nx.DiGraph, concept: str, depth: int) -> list[dict[str, Any]]:
 
 
 if __name__ == "__main__":
+    from src.vector_store.reset import resetDB_CONCEPT
+
+    resetDB_CONCEPT()
+
     base_dir = os.path.dirname(os.path.dirname(__file__))
     pilot_dir = os.path.join(base_dir, PILOT_DATASET_PATH)
     knowledge_graph = build_graph(pilot_dir)

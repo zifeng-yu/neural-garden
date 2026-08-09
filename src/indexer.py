@@ -17,11 +17,15 @@ import os
 import chromadb
 
 import src.config.logging_config as logging_config
-from src.config.config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY, PILOT_DATASET_PATH
+from src.config.config import (
+    CHROMA_KNOWLEDGE_TABLE_NAME,
+    PERSIST_DIRECTORY,
+    PILOT_DATASET_PATH,
+)
 from src.embedding.getEmbedding import get_embedding
 from src.knowledge.knowledgeUnit import extract_knowledge_unit
 from src.util.getHashValue import get_hash_value as hash
-from src.vector_store.reset import resetDB
+from src.vector_store.reset import resetDB_KNOWLEDGE
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +62,7 @@ def index_file(file_path: str, persist_dir: str):
     # 2. 初始化 Chroma 客户端
     client = chromadb.PersistentClient(path=persist_dir)
     collection = client.get_or_create_collection(
-        name=CHROMA_TABLE_NAME, metadata={"hnsw:space": "cosine"}
+        name=CHROMA_KNOWLEDGE_TABLE_NAME, metadata={"hnsw:space": "cosine"}
     )
 
     # 3. 检查是否已存在 uuid = 文件名hash , content_hash = 文件内容hash
@@ -131,7 +135,7 @@ if __name__ == "__main__":
 
     args = sys.argv[1:]
     if "--resetDB" in args:
-        resetDB()
+        resetDB_KNOWLEDGE()
 
     # 配置路径
     base_dir = os.path.dirname(os.path.dirname(__file__))

@@ -6,13 +6,20 @@ from typing import Any
 import networkx as nx
 
 import src.config.logging_config as logging_config
+from src.embedding.getEmbedding import get_embedding
 from src.knowledgeGraph.graph_extractor import (
     extract_concepts_from_text as get_concepts,
 )
+from src.knowledgeGraph.graph_extractor import extract_max_similarity_concept
 from src.knowledgeGraph.graph_extractor import (
     extract_relations_from_text as get_relations,
 )
 from src.util.getHashValue import get_hash_value as hash
+from src.vector_store.query_dao import (
+    get_by_id_concept,
+    search_by_threshold_concept,
+)
+from src.vector_store.save_dao import ConceptDO, ConceptMetadata, save_concept
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +63,48 @@ class RelationType(str, Enum):
     MENTION = "mentions"
 
 
+def get_documents_to_concepts(
+    documents: list[KnowledgeDocument],
+) -> list[dict[str, Any]]:
+    """
+    提炼所有文档的概念
+    """
+    result = []
+    for doc in documents:
+        title = doc.title
+        content = doc.content
+        if len(title) == 0 or len(content) == 0:
+            continue
+        fulll_text = f"<文本标题>{title}</文本标题>\n<文本内容>{content}</文本内容>"
+        title_hash_uuid = hash(title)
+        concepts = get_concepts(fulll_text)
+        result.append(
+            {
+                "id": title_hash_uuid,
+                "title": title,
+                "full_text": fulll_text,
+                "concepts": concepts,
+            }
+        )
+    return result
+
+
+def resolve_concept(concept: str) -> dict[str, Any]:
+    """概念归一化"""
+    concept_results_similarity = search_by_threshold_concept(query=concept)
+    if concept_results_similarity is not None and len(concept_results_similarity) > 0:
+        max_similarity_concepts = extract_max_similarity_concept(
+            concepts=concept,
+            similarity_concepts=[x.conceptName for x in concept_results_similarity],
+        )
+        if max_similarity_concepts is not None and len(max_similarity_concepts) > 0:
+            logger.info(
+                f"新增加概念 {concept} 最相似概念 llm判断结果：{max_similarity_concepts}"
+            )
+            return {"is_relove": True, "resolve_concept": max_similarity_concepts[0]}
+    return {"is_relove": False}
+
+
 def build_concept_graph(documents: list[KnowledgeDocument]) -> nx.DiGraph:
     """
     从文档列表构建概念图
@@ -70,25 +119,57 @@ def build_concept_graph(documents: list[KnowledgeDocument]) -> nx.DiGraph:
         NetworkX 图对象
     """
     G = nx.DiGraph()
-
-    for doc in documents:
-        title = doc.title
-        content = doc.content
-        if len(title) == 0 or len(content) == 0:
+    # 1. 遍历documents得到所有概念 -> list[dict] dict id title full_text concepts
+    doc_to_concepts = get_documents_to_concepts(documents)
+    # 2. 生成图谱
+    for doc_dict in doc_to_concepts:
+        if doc_dict["concepts"] is None or len(doc_dict["concepts"]) == 0:
             continue
-        fulll_text = f"<文本标题>{title}</文本标题>\n<文本内容>{content}</文本内容>"
-        title_hash_uuid = hash(title)
-        concepts = get_concepts(fulll_text)
+        G.add_node(
+            doc_dict["id"], type=NodeType.DOCUMENT.value, title=doc_dict["title"]
+        )
+        concepts_ending = []
+        for concept in doc_dict["concepts"]:
+            # 查询概念是否已经入库
+            query_id_chroma = get_by_id_concept(hash(concept))
+            before_similarity_concept = concept
+            if query_id_chroma is None:
+                # 不在库中，
+                resolve_concept_result = resolve_concept(concept=concept)
+            if resolve_concept_result["is_relove"]:
+                before_similarity_concept = resolve_concept_result["resolve_concept"]
+            # 查询概念是否已经入库(概念可能更新)
+            query_before_similarity_id_chroma = get_by_id_concept(
+                hash(before_similarity_concept)
+            )
+            # 没入库->入库 有入库—>title不在->入库
+            if query_before_similarity_id_chroma is None:
+                conceptDO = ConceptDO(
+                    id=hash(before_similarity_concept),
+                    embedding=get_embedding(before_similarity_concept),
+                    conceptName=before_similarity_concept,
+                    metadata=ConceptMetadata(source=[doc_dict["title"]]),
+                )
+                save_concept(conceptDO)
+            else:
+                if (
+                    doc_dict["title"]
+                    not in query_before_similarity_id_chroma.metadata.source
+                ):
+                    query_before_similarity_id_chroma.metadata.source.append(
+                        doc_dict["title"]
+                    )
+                save_concept(query_before_similarity_id_chroma)
 
-        if not concepts:
-            continue
-        logger.info(f"title:{title},concepts :{concepts}")
-        G.add_node(title_hash_uuid, type=NodeType.DOCUMENT.value, title=title)
-        for concept in concepts:
-            G.add_node(concept, type=NodeType.CONCEPT.value)
-            G.add_edge(title_hash_uuid, concept, relation=RelationType.MENTION.value)
+            G.add_node(before_similarity_concept, type=NodeType.CONCEPT.value)
+            G.add_edge(
+                doc_dict["id"],
+                before_similarity_concept,
+                relation=RelationType.MENTION.value,
+            )
+            concepts_ending.append(before_similarity_concept)
 
-        relations = get_relations(fulll_text, concepts)
+        relations = get_relations(doc_dict["full_text"], concepts_ending)
         for source, realtion, target in relations:
             if source in G.nodes and target in G.nodes:
                 G.add_edge(source, target, relation=realtion)
@@ -123,28 +204,3 @@ def search_by_node(G: nx.DiGraph, concept: str, depth: int = 2) -> list[dict[str
             related_concepts.append(result)
 
     return related_concepts
-
-
-# documents = [
-#     KnowledgeDocument(
-#         title="日本负利率政策",
-#         content="负利率是一种货币政策，由央行实施，影响银行利润和信贷政策",
-#     ),
-#     KnowledgeDocument(
-#         title="量化宽松",
-#         content="量化宽松是一种货币政策，包括购买国债，影响央行资产负债表",
-#     ),
-#     KnowledgeDocument(
-#         title="通胀目标",
-#         content="通胀目标是货币政策的目标之一，央行通过调整利率实现通胀目标",
-#     ),
-# ]
-# logger.info(documents)
-
-# graph = build_concept_graph(documents=documents)
-
-# logger.info(search_by_concept(graph, "通胀目标", 2))
-# logger.info(get_graph_stats(G=graph))
-
-
-# visualize_graph(graph, "logs/", "概念图_测试01")

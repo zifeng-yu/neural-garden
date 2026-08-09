@@ -7,7 +7,8 @@ dashscope:
 
 chroma:
   persist_directory: "data/chroma"
-  table_name: "knowledge"
+  knowledge_table_name: "knowledge"
+  concept_table_name: "concept"
 
 pilot_dataset:
   path: "data/pilot"

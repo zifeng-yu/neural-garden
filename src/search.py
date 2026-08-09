@@ -9,7 +9,7 @@ import os
 import chromadb
 
 import src.config.logging_config as logging_config
-from src.config.config import CHROMA_TABLE_NAME, PERSIST_DIRECTORY
+from src.config.config import CHROMA_KNOWLEDGE_TABLE_NAME, PERSIST_DIRECTORY
 from src.embedding.getEmbedding import get_embedding
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
     client = chromadb.PersistentClient(path=persist_dir)
 
     # 2. 获取集合
-    collection = client.get_collection(CHROMA_TABLE_NAME)
+    collection = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
     logger.info(f"表集合大小 {collection.count()}")
 
     # 3. 生成查询向量并搜索
@@ -106,7 +106,7 @@ def search_with_filter(
     base_dir = os.path.dirname(os.path.dirname(__file__))
     persist_dir = os.path.join(base_dir, PERSIST_DIRECTORY)
     client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_collection(CHROMA_TABLE_NAME)
+    collection = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
 
     embedding = get_embedding(query)
     if embedding is None:
@@ -140,7 +140,7 @@ def search_by_threshold(query: str, threshold: float = 0.7, top_k: int = 20):
     base_dir = os.path.dirname(os.path.dirname(__file__))
     persist_dir = os.path.join(base_dir, PERSIST_DIRECTORY)
     client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_collection(CHROMA_TABLE_NAME)
+    collection = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
 
     embedding = get_embedding(query)
     if embedding is None:

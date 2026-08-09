@@ -91,6 +91,11 @@ def get_DiGraph_stats(G: nx.DiGraph) -> DiGraphStats:
     # 找到度最高的节点（最核心的概念）
     if G.number_of_nodes() > 0:
         degree_dict = dict(G.in_degree())
+        logger.info(f"degree dict {degree_dict}")
+        for k, v in degree_dict.items():
+            logger.info(f"node: {k}")
+            if G.nodes[k][NodeAttribute.TYPE.value] == NodeType.CONCEPT.value:
+                pass
         degree_dict = {
             k: v
             for k, v in degree_dict.items()

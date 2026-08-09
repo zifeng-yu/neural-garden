@@ -130,3 +130,50 @@ source概念 -> target概念
         user_prompt_content=user_prompt,
         response_json=True,
     )
+
+
+def extract_max_similarity_concept(
+    concepts: str, similarity_concepts: list[str]
+) -> list[str]:
+    """提取最相似的概念"""
+    sys_prompt = """
+你是一个知识图谱概念归一化专家。
+
+你的任务：
+判断一个新概念是否与候选概念列表中的某个概念表示同一个实体或同一个知识概念。
+
+判断规则：
+1. 如果两个概念只是表达方式不同、简称、全称、同义词，则认为相同。
+2. 如果两个概念存在上下位关系、相关关系，但不是同一个概念，则认为不同。
+3. 不要因为语义相关就合并。
+
+例如：
+"央行" 和 "中央银行" -> 相同
+"负利率" 和 "负利率政策" -> 可能相同
+"央行" 和 "货币政策" -> 不同
+"苹果公司" 和 "苹果" -> 不同
+
+输出要求：
+只输出 JSON 数组。
+如果找到相同概念，返回候选列表中的原始概念名称。
+如果没有相同概念，返回空数组。
+
+格式：
+["概念"]
+或者：
+[]
+"""
+    user_prompt = f"""
+新概念：
+{concepts}
+
+候选概念：
+{similarity_concepts}
+
+请判断新概念是否已经存在于候选概念中。
+"""
+    return fetchLLM(
+        sys_prompt_content=sys_prompt,
+        user_prompt_content=user_prompt,
+        response_json=True,
+    )
