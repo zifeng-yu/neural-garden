@@ -30,19 +30,15 @@ RETRYABLE_EXCEPTIONS = (LLMException,)
 def _should_retry_status(status_code: int) -> bool:
     """
     判断 HTTP 状态码是否应该重试
-    
+
     可重试：
     - 5xx: 服务端错误
     - 429: 速率限制
-    
+
     不可重试：
     - 4xx (除 429): 客户端错误
     """
-    if status_code >= 500:
-        return True
-    if status_code == 429:
-        return True
-    return False
+    return bool(status_code >= 500 or status_code == 429)
 
 
 def _on_retry(retry_count: int, exception: Exception, next_delay: float):
@@ -67,7 +63,7 @@ _llm_retry = retry(
     exceptions=RETRYABLE_EXCEPTIONS,
     timeout=30.0,
     retry_callback=_on_retry,
-    success_callback=_on_success
+    success_callback=_on_success,
 )
 
 
@@ -83,7 +79,7 @@ def generate(
 ) -> Any:
     """
     调用 DashScope LLM 生成响应（带重试机制）
-    
+
     Args:
         sys_prompt_content: 系统提示词
         user_prompt_content: 用户提示词
@@ -92,33 +88,33 @@ def generate(
         response_json: 是否要求 JSON 格式响应
         response_class: 如果指定，将 JSON 解析为该类
         timeout: 单次调用超时秒数（由装饰器自动注入，默认 30s）
-    
+
     Returns:
         LLM 响应：
         - response_json=False: 返回原始文本
         - response_json=True: 返回解析后的 dict/list
         - response_class 指定：返回该类的实例
-        
+
     Raises:
         LLMException: 重试 3 次后仍失败
-        
+
     示例:
         # 简单调用
         text = generate("你是一个助手", "你好")
-        
+
         # JSON 模式
         data = generate(
             "提取实体",
             "北京是中国首都",
             response_json=True
         )
-        
+
         # Pydantic 模式
         from pydantic import BaseModel
         class Entity(BaseModel):
             location: str
             country: str
-        
+
         entity = generate(
             "提取实体",
             "北京是中国首都",
@@ -131,10 +127,10 @@ def generate(
         {"role": "system", "content": sys_prompt_content},
         {"role": "user", "content": user_prompt_content},
     ]
-    
+
     # 配置 API Key
     dashscope.api_key = API_KEY
-    
+
     # 构建请求参数
     params = {
         "model": LLM_MODEL,
@@ -142,22 +138,22 @@ def generate(
         "temperature": temperature,
         "enable_thinking": enable_thinking,
     }
-    
+
     # JSON 格式要求
     if response_json:
         params["response_format"] = {"type": "json_object"}
-    
+
     # 超时参数（由 retry 装饰器注入）
     if timeout is not None:
         params["timeout"] = timeout
-    
+
     logger.info(
         f"[LLM 调用] model={LLM_MODEL}, "
         f"sys_len={len(sys_prompt_content)}, "
         f"user_len={len(user_prompt_content)}, "
         f"timeout={timeout}s"
     )
-    
+
     # 调用 API
     try:
         response = MultiModalConversation.call(**params)
@@ -165,11 +161,11 @@ def generate(
         # 网络层异常（连接错误、超时等）
         logger.warning(f"[LLM 调用] 网络层异常，将重试：{type(e).__name__}: {e}")
         raise LLMException(f"Network error: {e}") from e
-    
+
     # 检查响应状态
     if response.status_code != 200:
         error_msg = f"{response.status_code}: {response.message}"
-        
+
         if _should_retry_status(response.status_code):
             # 可重试错误（5xx, 429）
             logger.warning(
@@ -182,8 +178,10 @@ def generate(
                 f"[LLM 调用] 客户端错误 ({response.status_code})，不重试：{response.message}"
             )
             # 使用 RuntimeError 而不是 LLMException，避免被 retry 装饰器捕获
-            raise RuntimeError(f"Client error {response.status_code}: {response.message}")
-    
+            raise RuntimeError(
+                f"Client error {response.status_code}: {response.message}"
+            )
+
     # 解析响应
     try:
         text = response.output.choices[0].message.content[0]["text"]
@@ -191,13 +189,13 @@ def generate(
         error_msg = f"响应格式异常：{response.output}"
         logger.error(f"[LLM 调用] {error_msg}")
         raise LLMException(error_msg) from e
-    
+
     logger.debug(f"[LLM 调用] 响应长度：{len(text)}")
-    
+
     # 非 JSON 模式，直接返回文本
     if not response_json:
         return text
-    
+
     # JSON 模式，解析响应
     try:
         data = json.loads(text)
@@ -209,7 +207,7 @@ def generate(
             raise LLMException(error_msg) from e
         else:
             return text
-    
+
     # 如果指定了响应类，进行转换
     if response_class is not None:
         try:
@@ -218,7 +216,7 @@ def generate(
             error_msg = f"响应类转换失败：{str(e)}"
             logger.error(f"[LLM 调用] {error_msg}")
             raise LLMException(error_msg) from e
-    
+
     return data
 
 
@@ -231,17 +229,17 @@ def generate_streaming(
 ):
     """
     流式调用 LLM（不支持重试，因为流式无法重放）
-    
+
     Args:
         sys_prompt_content: 系统提示词
         user_prompt_content: 用户提示词
         temperature: 温度参数
         enable_thinking: 是否启用思考模式
         timeout: 超时秒数
-        
+
     Yields:
         增量文本片段
-        
+
     注意:
         流式调用不支持重试，因为无法重放已消耗的流
     """
@@ -249,9 +247,9 @@ def generate_streaming(
         {"role": "system", "content": sys_prompt_content},
         {"role": "user", "content": user_prompt_content},
     ]
-    
+
     dashscope.api_key = API_KEY
-    
+
     params = {
         "model": LLM_MODEL,
         "messages": prompt,
@@ -259,12 +257,12 @@ def generate_streaming(
         "enable_thinking": enable_thinking,
         "stream": True,
     }
-    
+
     if timeout is not None:
         params["timeout"] = timeout
-    
+
     response = MultiModalConversation.call(**params)
-    
+
     for chunk in response:
         if chunk.output.choices:
             content = chunk.output.choices[0].message.content
