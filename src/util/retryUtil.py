@@ -24,7 +24,6 @@ def retry(
     delay: float = 1.0,
     backoff: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-    timeout: Optional[float] = None,
     retry_callback=None,
     success_callback=None,
 ):
@@ -36,7 +35,6 @@ def retry(
         delay: 初始延迟秒数（默认 1 秒）
         backoff: 退避倍数（默认 2，即延迟序列：1s, 2s, 4s, 8s...）
         exceptions: 需要重试的异常类型元组（默认所有异常）
-        timeout: 单次调用超时秒数（None 表示不限制）
         retry_callback: 重试时的回调函数 (retry_count, exception, next_delay)
         success_callback: 成功时的回调函数 (result, total_time)
 
@@ -56,7 +54,6 @@ def retry(
             delay=0.5,
             backoff=2.0,
             exceptions=(NetworkError, TimeoutError),
-            timeout=30.0
         )
         def fetch_data():
             pass
@@ -75,10 +72,6 @@ def retry(
                     logger.debug(
                         f"[重试] {func.__name__} 开始第 {attempt}/{times} 次调用"
                     )
-
-                    # 如果指定了超时，注入到 kwargs
-                    if timeout is not None:
-                        kwargs["timeout"] = timeout
 
                     result = func(*args, **kwargs)
 

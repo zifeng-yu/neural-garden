@@ -75,7 +75,6 @@ def generate(
     enable_thinking: bool = False,
     response_json: bool = False,
     response_class: Optional[type] = None,
-    timeout: Optional[float] = None,
 ) -> Any:
     """
     调用 DashScope LLM 生成响应（带重试机制）
@@ -143,15 +142,10 @@ def generate(
     if response_json:
         params["response_format"] = {"type": "json_object"}
 
-    # 超时参数（由 retry 装饰器注入）
-    if timeout is not None:
-        params["timeout"] = timeout
-
     logger.info(
         f"[LLM 调用] model={LLM_MODEL}, "
         f"sys_len={len(sys_prompt_content)}, "
         f"user_len={len(user_prompt_content)}, "
-        f"timeout={timeout}s"
     )
 
     # 调用 API
