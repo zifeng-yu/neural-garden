@@ -55,13 +55,12 @@ def _on_success(result: Any, total_time: float):
 
 
 # 重试装饰器配置
-# 重试 3 次，初始延迟 1 秒，退避倍数 2.0，超时 30 秒
+# 重试 3 次，初始延迟 1 秒，退避倍数 2.0
 _llm_retry = retry(
     times=3,
     delay=1.0,
     backoff=2.0,
     exceptions=RETRYABLE_EXCEPTIONS,
-    timeout=30.0,
     retry_callback=_on_retry,
     success_callback=_on_success,
 )
@@ -86,7 +85,6 @@ def generate(
         enable_thinking: 是否启用思考模式
         response_json: 是否要求 JSON 格式响应
         response_class: 如果指定，将 JSON 解析为该类
-        timeout: 单次调用超时秒数（由装饰器自动注入，默认 30s）
 
     Returns:
         LLM 响应：
