@@ -31,7 +31,7 @@ cp .env.example .env
 python -m src.indexer
 
 # 清空向量库后重新索引
-python -m src.indexer --reset
+python -m src.indexer --resetDB
 ```
 
 **增量更新机制**：
@@ -47,18 +47,204 @@ python -m src.search "什么是 Neural Garden"
 
 ---
 
+## 核心流程
+
+### 流程一：文档转换成向量入库
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Markdown   │ ──> │  知识单元   │ ──> │  Embedding  │ ──> │  ChromaDB   │
+│   文档      │     │   提取      │     │   向量化    │     │   入库      │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+**详细步骤**：
+
+#### Step 1: 读取文档
+```python
+# src/indexer.py: load_document()
+with open(file_path, "r", encoding="utf-8") as f:
+    content = f.read()
+```
+
+#### Step 2: 知识单元提取
+```python
+# src/indexer.py: index_file()
+from src.knowledge.knowledgeUnit import extract_knowledge_unit
+
+knowledgeUnit = extract_knowledge_unit(
+    content=content,
+    source=filename,
+    uuid=hash(filename)  # 基于文件名生成稳定 ID
+)
+```
+
+**知识单元结构**：
+- `unit_id`: 唯一标识（文件名哈希）
+- `title`: 文档标题
+- `keywords`: 关键词列表（3-5 个）
+- `summary`: 摘要（200-300 字）
+- `content_hash`: 内容哈希（用于增量更新检测）
+
+#### Step 3: 向量化
+```python
+# src/indexer.py: index_file()
+from src.embedding.getEmbedding import get_embedding
+
+embedding = get_embedding(knowledgeUnit.to_embedding_text())
+# 返回 768 维向量
+```
+
+**Embedding 文本**：`标题 + 摘要 + 关键词` 的组合文本，优化检索效果。
+
+#### Step 4: 入库（增量更新）
+```python
+# src/indexer.py: index_file()
+# 检查是否已存在
+existing = collection.get(ids=[uuid], include=["metadatas"])
+if existing["ids"] and existing["metadatas"][0].get("content_hash") == content_hash:
+    # 内容未变化，跳过
+    return
+
+# 新增或更新
+collection.upsert(
+    ids=[knowledgeUnit.unit_id],
+    embeddings=[embedding],
+    documents=[knowledgeUnit.to_embedding_text()],
+    metadatas=[{
+        "source": source,
+        "title": knowledgeUnit.title,
+        "keywords": json.dumps(knowledgeUnit.keywords),
+        "full_content": content,
+        "content_hash": content_hash,
+    }]
+)
+```
+
+**增量更新逻辑**：
+1. 用文件名哈希作为 ID 查询
+2. 比较 `content_hash` 判断内容是否变化
+3. 未变化 → 跳过（节省 API 成本）
+4. 已变化 → `upsert` 更新（覆盖旧向量）
+
+---
+
+### 流程二：知识图谱构建
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  文档列表   │ ──> │  概念提取   │ ──> │  概念归一化 │ ──> │  关系抽取   │ ──> │  NetworkX   │
+│             │     │  (LLM)      │     │  (相似度)   │     │  (LLM)      │     │   概念图    │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+**详细步骤**：
+
+#### Step 1: 文档 → 概念
+```python
+# src/knowledgeGraph/knowledge_graph.py: get_documents_to_concepts()
+from src.knowledgeGraph.graph_extractor import extract_concepts_from_text
+
+concepts = extract_concepts_from_text(f"<文本标题>{title}</文本标题>\n<文本内容>{content}</文本内容>")
+# 返回：["概念 1", "概念 2", ...] 最多 10 个
+```
+
+**提取规则**：
+- 只提取名词/名词短语
+- 优先：技术术语、理论、政策、机构、产品、事件
+- 删除：普通描述词、时间地点、泛化词语
+- 同义概念只保留一个标准名称
+
+#### Step 2: 概念归一化
+```python
+# src/knowledgeGraph/knowledge_graph.py: resolve_concept()
+from src.vector_store.query_dao import search_by_threshold_concept
+
+# 查询相似概念（余弦相似度阈值）
+similar_concepts = search_by_threshold_concept(query=concept)
+
+# 用 LLM 判断最相似的概念
+from src.knowledgeGraph.graph_extractor import extract_max_similarity_concept
+normalized = extract_max_similarity_concept(concept, [x.conceptName for x in similar_concepts])
+# 返回："标准化概念名"
+```
+
+**归一化目的**：避免同义词重复（如"AI"和"人工智能"合并为一个节点）。
+
+#### Step 3: 概念入库
+```python
+# src/knowledgeGraph/knowledge_graph.py: build_concept_graph()
+from src.vector_store.save_dao import save_concept, ConceptDO, ConceptMetadata
+
+conceptDO = ConceptDO(
+    id=hash(concept_name),
+    embedding=get_embedding(concept_name),
+    conceptName=concept_name,
+    metadata=ConceptMetadata(source=[doc_title])
+)
+save_concept(conceptDO)
+```
+
+#### Step 4: 关系抽取
+```python
+# src/knowledgeGraph/knowledge_graph.py: build_concept_graph()
+from src.knowledgeGraph.graph_extractor import extract_relations_from_text
+
+relations = extract_relations_from_text(text, concepts)
+# 返回：[["源概念", "关系类型", "目标概念"], ...]
+```
+
+**关系示例**：
+```json
+[
+  ["央行", "实施", "量化宽松"],
+  ["量化宽松", "影响", "经济"]
+]
+```
+
+#### Step 5: 构建图
+```python
+# src/knowledgeGraph/knowledge_graph.py: build_concept_graph()
+import networkx as nx
+
+G = nx.DiGraph()
+
+# 添加文档节点
+G.add_node(doc_id, type="document", title=doc_title)
+
+# 添加概念节点
+G.add_node(concept_id, type="concept")
+
+# 添加边：文档 → 概念（mentions 关系）
+G.add_edge(doc_id, concept_id, relation="mentions")
+
+# 添加边：概念 → 概念（LLM 抽取的关系）
+G.add_edge(source_concept, target_concept, relation=relation_type)
+```
+
+#### Step 6: 可视化
+```python
+# src/graph.py: graph_png()
+from src.util.visualizeGraph import visualize_graph
+
+visualize_graph(G, "graphPNG/", "概念图")
+# 输出：PNG 图片
+```
+
+---
+
 ## 课程进度
 
 | 课次 | 主题 | 状态 | 核心功能 | 推送日期 |
 |------|------|------|---------|----------|
 | Lesson 01 | 5 分钟跑起来 | ✅ 完成 | 项目骨架 + Hello World 搜索 | 2026-07-19 |
 | Lesson 02 | 知识单元提取 | ✅ 完成 | LLM 提取 + 向量化 + 增量更新 | 2026-07-26 |
-| Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 + --reset 参数 | 2026-07-26 |
+| Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 + --resetDB 参数 | 2026-07-26 |
 | Lesson 03 | 向量搜索入门 | ✅ 完成 | Chroma 搜索 + 相似度计算 | 2026-08-03 |
 | Lesson 04 | 概念图构建 | ✅ 完成 | NetworkX + 概念归一化 + 重试机制 | 2026-08-09 (提前) |
-| Lesson 05 | Insight 记录 | ⏳ 待开发 | `insight.py` + 飞书集成 | 2026-08-17 |
-| Lesson 06 | 反馈闭环 | ⏳ 待开发 | `feedback.py` + 数据迭代 | 2026-08-24 |
-| Lesson 07 | 自动化部署 | ⏳ 待开发 | Cron + MCP 封装 + 验收 | 2026-08-31 |
+| Lesson 05 | Insight 记录 | ✅ 完成 | `insight.py` + Markdown 导出 | 2026-08-11 (补) |
+| Lesson 06 | 反馈闭环 | ⏳ 待开发 | `feedback.py` + 数据迭代 | 2026-08-16 |
+| Lesson 07 | 自动化部署 | ⏳ 待开发 | Cron + MCP 封装 + 验收 | 2026-09-07 |
 
 ---
 
@@ -68,20 +254,42 @@ python -m src.search "什么是 Neural Garden"
 neural-garden/
 ├── README.md
 ├── requirements.txt
-├── config.py                 # 配置加载（支持 ${ENV} 语法）
-├── config.yaml               # 配置定义（API Key 从 .env 读取）
-├── .env                      # 环境变量（敏感信息，勿提交）
-├── .env.example              # 环境变量模板
+├── config.yaml                 # 配置定义（API Key 从 .env 读取）
+├── .env                        # 环境变量（敏感信息，勿提交）
+├── .env.example                # 环境变量模板
 ├── src/
 │   ├── __init__.py
-│   ├── indexer.py            # 知识索引器
-│   ├── search.py             # 搜索入口
-│   └── embedding/
-│       └── getEmbedding.py   # 嵌入模型调用（DashScope）
+│   ├── indexer.py              # 知识索引器（增量更新）
+│   ├── search.py               # 向量搜索入口
+│   ├── graph.py                # 知识图谱构建
+│   ├── insight.py              # Insight 记录模块
+│   ├── get_chroma_collection.py # Chroma 集合获取工具
+│   ├── config/
+│   │   ├── config.py           # 配置加载
+│   │   └── logging_config.py   # 日志配置
+│   ├── embedding/
+│   │   └── getEmbedding.py     # Embedding API 调用
+│   ├── knowledge/
+│   │   └── knowledgeUnit.py    # 知识单元提取
+│   ├── knowledgeGraph/
+│   │   ├── knowledge_graph.py  # 图构建主逻辑
+│   │   └── graph_extractor.py  # 概念/关系抽取（LLM）
+│   ├── vector_store/
+│   │   ├── save_dao.py         # 向量存储保存
+│   │   ├── query_dao.py        # 向量存储查询
+│   │   └── reset.py            # 清空向量库
+│   └── util/
+│       ├── callDashscopellm.py # LLM 调用封装
+│       ├── getHashValue.py     # 哈希工具
+│       ├── graphStats.py       # 图统计信息
+│       ├── visualizeGraph.py   # 图可视化
+│       └── retryUtil.py        # 重试机制
 ├── data/
-│   ├── pilot/                # 原始知识笔记（Markdown）
-│   └── chroma/               # ChromaDB 向量存储（自动生成）
+│   ├── pilot/                  # 原始知识笔记（Markdown）
+│   └── chroma/                 # ChromaDB 向量存储（自动生成）
 └── tests/
+    ├── test_concept_normalization.py  # 概念归一化测试
+    └── test_retry.py                  # 重试机制测试
 ```
 
 ---
@@ -98,7 +306,8 @@ dashscope:
 
 chroma:
   persist_directory: "data/chroma"
-  table_name: "knowledge"
+  knowledge_table_name: "knowledge"
+  concept_table_name: "concept"
 
 pilot_dataset:
   path: "data/pilot"
@@ -112,30 +321,63 @@ API_KEY=sk-your-api-key-here
 
 ---
 
-## 核心模块
+## 核心模块 API
 
 ### src/embedding/getEmbedding.py
-
-封装 DashScope Embedding API，提供统一的向量生成接口：
 
 ```python
 from src.embedding.getEmbedding import get_embedding
 
 vector = get_embedding("你的文本")
+# 返回：list[float] (768 维)
 ```
 
 ### src/indexer.py
 
-知识索引器，支持：
-- 单文件导入：`index_file(file_path, persist_dir)`
-- 批量导入：`index_directory(dir_path, persist_dir)`
+```python
+# 单文件索引
+index_file(file_path, persist_dir)
+
+# 批量索引
+index_directory(dir_path, persist_dir)
+
+# 命令行
+python -m src.indexer           # 增量更新
+python -m src.indexer --resetDB # 清空后重新索引
+```
 
 ### src/search.py
 
-向量搜索入口，支持语义检索：
-
 ```bash
 python -m src.search "<查询内容>" [top_k]
+```
+
+### src/graph.py
+
+```python
+# 构建概念图
+from src.graph import build_graph, graph_png, log_stats
+
+G = build_graph(pilot_dir)
+graph_png(G)  # 输出 PNG
+log_stats(G)  # 打印统计信息
+```
+
+### src/insight.py
+
+```python
+from src.insight import create_insight
+
+insight = create_insight(
+    title="一句话总结",
+    trigger_content="触发内容",
+    source="来源",
+    content="洞察内容",
+    related_concepts=["概念 1", "概念 2"],
+    action_items=["行动 1", "行动 2"]
+)
+
+print(insight.to_markdown())
 ```
 
 ---
@@ -145,14 +387,19 @@ python -m src.search "<查询内容>" [top_k]
 | 组件 | 技术 |
 |------|------|
 | 向量存储 | ChromaDB（SQLite + HNSW 索引） |
+| 概念存储 | ChromaDB（独立 collection） |
+| 图存储 | NetworkX（内存 DiGraph） |
 | Embedding | DashScope text-embedding-v1（768 维） |
-| LLM | DashScope qwen3.5-plus（知识单元提取） |
+| LLM | DashScope qwen3.5-plus（知识提取、关系抽取） |
 | 配置管理 | PyYAML + python-dotenv |
 | 日志系统 | Python logging（滚动文件 + 分级控制） |
 | 语言 | Python 3.9+ |
 
 ---
+
 ## 最终架构
+
+```
              Query
                |
           Embedding
@@ -172,7 +419,8 @@ python -m src.search "<查询内容>" [top_k]
         Reranker
                |
              LLM
-             
+```
+
 ---
 
 ## 核心特性
@@ -188,7 +436,15 @@ python -m src.search "<查询内容>" [top_k]
 - **Pydantic 验证**：LLM 输出经过严格验证（字段类型、长度、有效性）
 - **防幻觉 Prompt**：明确要求"不得根据常识补充文档没有的信息"
 - **日志系统**：生产级日志配置（控制台 + 滚动文件 + 错误日志）
-- **命令行参数**：支持 `--reset` 按需清空向量库
+- **命令行参数**：支持 `--resetDB` 按需清空向量库
+- **重试机制**：API 调用失败自动重试（`src/util/retryUtil.py`）
+
+### 知识图谱
+
+- **概念归一化**：相似度检索 + LLM 判断，合并同义词
+- **关系抽取**：LLM 从文本中提取有向关系
+- **可视化**：自动生成概念图 PNG
+- **统计信息**：节点数、边数、连通分量等
 
 ---
 
@@ -201,10 +457,10 @@ python -m src.search "<查询内容>" [top_k]
 | Lesson 01 | 5 分钟跑起来 | 2026-07-19 |
 | Lesson 02 | 知识单元提取 | 2026-07-26 |
 | Lesson 03 | 向量搜索入门 | 2026-08-03 |
-| Lesson 04 | 概念图构建 | 2026-08-10 |
-| Lesson 05 | Insight 记录 | 2026-08-17 |
-| Lesson 06 | 反馈闭环 | 2026-08-24 |
-| Lesson 07 | 自动化部署 | 2026-08-31 |
+| Lesson 04 | 概念图构建 | 2026-08-09 |
+| Lesson 05 | Insight 记录 | 2026-08-09 |
+| Lesson 06 | 反馈闭环 | 2026-08-16 |
+| Lesson 07 | 自动化部署 | 2026-08-23 |
 
 ---
 
@@ -224,6 +480,18 @@ python -m src.search "<查询内容>" [top_k]
 - `text-embedding-v1`（默认）
 - `text-embedding-v2`
 - 其他 DashScope 支持的模型
+
+### Q: 增量更新如何工作？
+
+1. 首次运行：全量索引，记录每个文件的 `content_hash`
+2. 后续运行：比较文件名哈希 ID 对应的 `content_hash`
+3. 相同 → 跳过；不同 → 更新
+
+### Q: 概念归一化如何工作？
+
+1. 新概念提取后，在概念库中检索相似概念（余弦相似度阈值）
+2. 如果有相似概念，用 LLM 判断是否指向同一实体
+3. 如果是 → 使用已有概念名；否 → 创建新概念
 
 ---
 
