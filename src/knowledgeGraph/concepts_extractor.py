@@ -56,84 +56,8 @@ def extract_concepts_from_text(text: str) -> list[str]:
     )
 
 
-def extract_relations_from_text(text: str, concepts: list[str]) -> list[list]:
-    """
-    从文本中提取概念之间的关系
-    Args:
-        text:输入文本
-        concepts:概念列表
-    Returns:
-        关系列表 [(概念1,关系类型,概念2)...]
-    """
-    sys_prompt = """
-你是一个知识图谱关系抽取助手。
-
-任务：
-根据文本和已有概念列表，提取概念之间的有向关系。
-
-输出格式：
-只输出 JSON 数组：
-
-[
- ["source概念", "relation关系", "target概念"]
-]
-
-规则：
-
-1. 每条关系表示一个有向边：
-source概念 -> target概念
-
-2. source 是动作发起者，target 是关系承受者。
-保持语义方向，不要反转。
-
-例如：
-文本：
-"央行通过量化宽松政策刺激经济"
-
-正确：
-[
- ["央行","实施","量化宽松"],
- ["量化宽松","影响","经济"]
-]
-
-错误：
-[
- ["量化宽松","实施","央行"]
-]
-
-3. relation 使用简洁明确的关系类型，例如：
-- 属于
-- 包含
-- 实施
-- 使用
-- 影响
-- 导致
-- 依赖
-- 替代
-- 产生
-
-4. 只抽取文本明确表达的关系。
-不要基于常识补充。
-
-5. source 和 target 必须来自给定概念列表。
-不要创造新的概念。
-
-6. 如果没有发现关系，返回：
-
-[]
-
-只输出 JSON，不要输出解释。
-"""
-    user_prompt = f"<文本>{text}</文本>\n<概念>{concepts}</概念>"
-    return fetchLLM(
-        sys_prompt_content=sys_prompt,
-        user_prompt_content=user_prompt,
-        response_json=True,
-    )
-
-
 def extract_max_similarity_concept(
-    concepts: str, similarity_concepts: list[str]
+    concept: tuple[str, list[str]], similarity_concepts: list[tuple[str, list[str]]]
 ) -> list[str]:
     """提取最相似的概念"""
     sys_prompt = """
@@ -146,6 +70,8 @@ def extract_max_similarity_concept(
 1. 如果两个概念只是表达方式不同、简称、全称、同义词，则认为相同。
 2. 如果两个概念存在上下位关系、相关关系，但不是同一个概念，则认为不同。
 3. 不要因为语义相关就合并。
+4. 不允许将父概念和子概念合并。例如：算法 ≠ 排序算法 数据结构 ≠ HashSet 复杂度 ≠ 时间复杂度 复杂度 ≠ 空间复杂度
+5. 判断是否同一实体，不是是否属于同一主题。
 
 例如：
 "央行" 和 "中央银行" -> 相同
@@ -153,9 +79,16 @@ def extract_max_similarity_concept(
 "央行" 和 "货币政策" -> 不同
 "苹果公司" 和 "苹果" -> 不同
 
+输入：包含了新概念、新概念来源的文本、候选概念、候选概念来源的文本。来源文本可能有多个。
+格式：
+[<新概念>央行</新概念><来源文本>来源文本内容...</来源文本><来源文本>来源文本内容...</来源文本>]
+[<候选概念>中央银行</候选概念><来源文本>来源文本内容...</来源文本><来源文本>来源文本内容...</来源文本>]
+[<候选概念>负利率政策</候选概念><来源文本>来源文本内容...</来源文本><来源文本>来源文本内容...</来源文本>]
+
+
 输出要求：
 只输出 JSON 数组。
-如果找到相同概念，返回候选列表中的原始概念名称。
+如果找到相同概念，返回候选列表中的原始概念名称，如果有找到多个相同概念，最相同的排在返回的数组的第一个位置上。
 如果没有相同概念，返回空数组。
 
 格式：
@@ -163,15 +96,16 @@ def extract_max_similarity_concept(
 或者：
 []
 """
-    user_prompt = f"""
-新概念：
-{concepts}
+    user_prompt = f"[<新概念>{concept[0]}</新概念>"
+    for chunk_content in concept[1]:
+        user_prompt += f"<来源文本>{chunk_content}</来源文本>"
+    user_prompt += "]"
 
-候选概念：
-{similarity_concepts}
-
-请判断新概念是否已经存在于候选概念中。
-"""
+    for s_concept, s_concept_chunk_list in similarity_concepts:
+        user_prompt += f"[<候选概念>{s_concept}</候选概念>"
+        for s_chunk_content in s_concept_chunk_list:
+            user_prompt += f"<来源文本>{s_chunk_content}</来源文本>"
+        user_prompt += "]"
     return fetchLLM(
         sys_prompt_content=sys_prompt,
         user_prompt_content=user_prompt,

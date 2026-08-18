@@ -14,13 +14,17 @@ from src.util.retryUtil import retry
 logger = logging.getLogger(__name__)
 
 
+class ContentNotExtrator(Exception):
+    pass
+
+
 class Response_extractor(BaseModel):
     title: str = Field(min_length=1, max_length=30)
     summary: str = Field(min_length=1, max_length=500)
     keywords: list[str] = Field(min_length=0, max_length=10)
 
 
-@retry(times=2)
+@retry(times=2, exceptions=(LLMException,))
 def extractor_by_llm(content: str) -> Response_extractor:
     prompt = []
     system_prompt_content = """
@@ -29,10 +33,10 @@ def extractor_by_llm(content: str) -> Response_extractor:
 1. title: 文档标题(20 字以内）
 2. summary: 核心摘要(100-300 字，概括主要内容）
 3. keywords: 3-10 个关键词（最能代表文档主题的词汇）
-4. 如果遇到无效文章输入,title的值为"无效文章输入"
-5. 提取后输出json的key:title,summary,keywords三者不可缺少
-5. 不允许根据常识补充文档没有出现的信息
-6. summary必须只基于原文,不得推测
+4. 提取后输出json的key:title,summary,keywords三者不可缺少
+5. 如果遇到无效文章输入,返回JSON结构体中的title和summary的值为"无效文章输入"
+6. 不允许根据常识补充文档没有出现的信息
+7. summary必须只基于原文,不得推测
 
 【输出格式】
 严格输出 JSON,不要任何其他文字,例子如下：
@@ -47,10 +51,6 @@ def extractor_by_llm(content: str) -> Response_extractor:
     prompt.append(system_prompt)
     prompt.append(user_prompt)
     dashscope.api_key = API_KEY
-    # dashscope.base_http_api_url = (
-    #     "https://ws-nbtll7yjauor7eld.cn-beijing.maas.aliyuncs.com/api/v1"
-    # )
-    # logger.info(prompt)
     response = MultiModalConversation.call(
         model=LLM_MODEL,
         messages=prompt,
@@ -62,7 +62,7 @@ def extractor_by_llm(content: str) -> Response_extractor:
         raise LLMException(f"{response.status_code}:{response.message}")
     logger.info(response.output.choices[0].message.content[0]["text"])
     data = json.loads(response.output.choices[0].message.content[0]["text"])
-    if data["title"] == "无效文章输入":
-        raise LLMException(f"{data}")
+    if data["title"] == "无效文章输入" or data["summary"] == "无效文章输入":
+        raise ContentNotExtrator(f"无效文章提炼： {data} ，文章内容 {content}")
 
     return Response_extractor(**data)

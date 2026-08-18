@@ -1,15 +1,3 @@
-"""
-Neural Garden - 知识单元索引器
-Lesson 02.1: 生产级版本（支持增量更新）
-
-功能：
-- 批量导入 pilot/ 目录下所有 .md 文件
-- 知识单元提取（标题、摘要、关键词）
-- 调用 DashScope Embedding API 向量化
-- 增量更新检测（基于 content_hash，避免重复索引）
-- 支持 --reset 参数清空向量库
-"""
-
 import json
 import logging
 import os
@@ -22,10 +10,46 @@ from src.config.config import (
     PERSIST_DIRECTORY,
     PILOT_DATASET_PATH,
 )
+from src.document.splitter import markdown_spilt
 from src.embedding.getEmbedding import get_embedding
 from src.knowledge.knowledgeUnit import extract_knowledge_unit
+from src.knowledgeGraph.concepts import (
+    concept_clustering_in_document,
+    documents_to_concepts,
+    normalized_concept,
+)
+from src.repository import document_chunk_concepts
+from src.repository.document_chunk_concepts import query_by_document_id
+from src.repository.document_chunk_knowledge_units import (
+    query_by_ids as query_by_ids_knowunit,
+)
+from src.repository.document_insert_domain import (
+    InsertChunk,
+    InsertConcepts,
+    InsertDoc,
+    InsertDocumentDomain,
+    InsertKnowledgeUnit,
+    save_documents_domain,
+)
+from src.repository.documents import (
+    query_by_content_hash,
+    query_by_file_name_hash,
+)
+from src.repository.documents import query_by_id as query_by_id_document
+from src.repository.init import sqlite_table_init
 from src.util.getHashValue import get_hash_value as hash
-from src.vector_store.reset import resetDB_KNOWLEDGE
+from src.vector_store.query_dao import (
+    log_concept_collection_size,
+    log_knowledgeUnit_collection_size,
+)
+from src.vector_store.reset import resetDB_CONCEPT, resetDB_KNOWLEDGE
+from src.vector_store.save_dao import (
+    ConceptDTO,
+    KnowledgeUnitDTO,
+    KnowledgeUnitMetadata,
+    save_concept,
+    save_knowlege,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +75,6 @@ def index_file(file_path: str, persist_dir: str):
     Args:
         file_path: Markdown 文件路径
         persist_dir: Chroma 持久化目录
-        api_key: DashScope API Key
     """
     # 1. 读取文件
     content = load_document(file_path)
@@ -59,52 +82,121 @@ def index_file(file_path: str, persist_dir: str):
 
     logger.info(f"📄 正在索引：{source}")
 
-    # 2. 初始化 Chroma 客户端
-    client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_or_create_collection(
-        name=CHROMA_KNOWLEDGE_TABLE_NAME, metadata={"hnsw:space": "cosine"}
-    )
-
-    # 3. 检查是否已存在 uuid = 文件名hash , content_hash = 文件内容hash
-    #   文件名变换 一定属于新增，文章名没变 看内容 是否有变化
-    uuid = hash(source)
+    # 2. 查询是否有记录
+    file_name_hash = hash(source)
     content_hash = hash(content)
-    existing = collection.get(ids=[uuid], include=["metadatas"])
-    if existing["ids"] and existing["metadatas"][0].get("content_hash") == content_hash:
-        logger.info(f"⏭️  已存在，跳过：{source}")
+    # 根据file_name_hash content_hash查询
+    file_result = query_by_file_name_hash(file_name_hash)
+    content_result = query_by_content_hash(content_hash)
+    action = None
+    if file_result:
+        # 文件名存在 内容也一样 代表处理过了 就跳过
+        if file_result.content_hash == content_hash:
+            return
+        # 内容不一样 需要del后new
+        else:
+            action = "need_del"
+    elif content_result:
+        # 文件名不存在 但 内容存在 ，直接copy
+        action = "need_copy"
+    else:
+        action = "need_new"
+
+    # 执行copy or del 逻辑
+    if action == "need_copy":
+        # todo copy
+        return
+    elif action == "need_del":
+        # todo del
         return
 
-    # 4. 获取知识单元
-    knowledgeUnit = extract_knowledge_unit(content=content, source=source, uuid=uuid)
-    if knowledgeUnit is None:
-        logger.info(f"知识提取失败，source {source}")
+    if action != "need_del" and action != "need_new":
         return
 
-    # 5. 调用 Embedding API
-    logger.info("🔢 正在生成向量...")
-    embedding = get_embedding(knowledgeUnit.to_embedding_text())
-    if embedding is None:
-        logger.info(f"⚠️  跳过 {source}（Embedding 失败）")
+    # 1. docDO
+    insert_doc = InsertDoc(source, file_name_hash, content_hash)
+    # 2. chunk
+    chunks = markdown_spilt(content)
+    if chunks is None:
         return
+    # 组insert对象
+    insert_chunks = []
+    split_no = 1
+    for chunk in chunks:
+        # 3 获取知识单元 - 这里从chunk来获取
+        knowledgeUnit = extract_knowledge_unit(
+            content=chunk, id=f"filename:{source},splitNo:{split_no}"
+        )
+        insert_chunk = InsertChunk(split_no, chunk, hash(chunk))
+        split_no += 1
+        if knowledgeUnit is None:
+            logger.info(f"知识提取失败，source {source}")
+            insert_chunks.append(insert_chunk)
+            continue
+        insert_chunk.know_unit = InsertKnowledgeUnit(
+            knowledgeUnit.title,
+            knowledgeUnit.summary,
+            knowledgeUnit.keywords,
+            knowledgeUnit.to_embedding_text(),
+        )
+        # 4 concept
+        get_concepts = documents_to_concepts(knowledgeUnit.title, chunk)
+        if get_concepts:
+            insert_concepts = [InsertConcepts(x, x, hash(x)) for x in get_concepts]
+            insert_chunk.concepts = insert_concepts
 
-    # logger.info(f"向量返回：{embedding}")
-    # 6. 添加到向量库
-    collection.upsert(
-        ids=[knowledgeUnit.unit_id],
-        embeddings=[embedding],
-        documents=[knowledgeUnit.to_embedding_text()],  # 存储向量化文本
-        metadatas=[
-            {
-                "source": source,
-                "title": knowledgeUnit.title,
-                "keywords": json.dumps(knowledgeUnit.keywords),
-                "full_content": content,  # 可选：存储全文用于后续检索
-                "content_hash": content_hash,
-            }
-        ],
+        insert_chunks.append(insert_chunk)
+
+    logger.info(f"归一前 数据 {[a.concepts for a in insert_chunks]}")
+    # 文档内部概念聚集（归一）
+    concept_clustering_in_document(insert_chunks)
+    logger.info(f"内部归一后 数据 {[a.concepts for a in insert_chunks]}")
+    # 文档外部概念聚聚（归一）
+    normalized_concept(insert_chunks)
+    logger.info(f"外部归一后 数据 {insert_chunks}")
+
+    save_db_result = save_documents_domain(
+        InsertDocumentDomain(insert_doc, insert_chunks)
     )
 
-    logger.info(f"✅ 索引完成：{source} , collection size {collection.count()}")
+    logger.info(f"save_db_result {save_db_result}")
+
+    # 保存knowledgeUnit
+    if "knowledge_unit_ids" in save_db_result:
+        knowledgeUnit_ids = save_db_result["knowledge_unit_ids"]
+        knowledgeUnit_list = query_by_ids_knowunit(knowledgeUnit_ids)
+        if knowledgeUnit_list:
+            for unit in knowledgeUnit_list:
+                save_knowlege(
+                    KnowledgeUnitDTO(
+                        str(unit.id),
+                        get_embedding(unit.embedding_text),
+                        unit.embedding_text,
+                        KnowledgeUnitMetadata(
+                            source,
+                            unit.document_id,
+                            unit.document_chunk_id,
+                            unit.title,
+                            unit.keywords,
+                        ),
+                    )
+                )
+    # 保存 concept
+    if "document_id" in save_db_result:
+        documentDO = query_by_id_document(save_db_result["document_id"])
+        if documentDO:
+            document_chunk_concepts_dolist = query_by_document_id(documentDO.id)
+            for document_chunk_concepts_do in document_chunk_concepts_dolist:
+                save_concept(
+                    ConceptDTO(
+                        document_chunk_concepts_do.normalized_concept_hash,
+                        get_embedding(document_chunk_concepts_do.normalized_concept),
+                        document_chunk_concepts_do.normalized_concept,
+                    )
+                )
+
+    log_concept_collection_size()
+    log_knowledgeUnit_collection_size()
 
 
 def index_directory(dir_path: str, persist_dir: str):
@@ -136,6 +228,8 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if "--resetDB" in args:
         resetDB_KNOWLEDGE()
+        resetDB_CONCEPT()
+        sqlite_table_init()
 
     # 配置路径
     base_dir = os.path.dirname(os.path.dirname(__file__))

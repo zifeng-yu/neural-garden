@@ -1,51 +1,62 @@
-import os
+import json
 from dataclasses import asdict, dataclass
-
-import chromadb
-from chromadb.api.models.Collection import Collection
 
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
     CHROMA_KNOWLEDGE_TABLE_NAME,
-    PERSIST_DIRECTORY,
 )
 from src.get_chroma_collection import get_collection
 
 
-def save_knowlege():
-    pass
-
-
 @dataclass
-class ConceptMetadata:
-    """metadata"""
-
-    source: list[str]
+class KnowledgeUnitMetadata:
+    file_name: str
+    document_id: int
+    document_chunk_id: int
+    title: str
+    keywords: list[str]
 
     def to_dict(self) -> dict:
-        """转换为字典（用于存储）"""
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(source=list(data.get("source", [])))
+        data = asdict(self)
+        data["keywords"] = json.dumps(self.keywords, ensure_ascii=False)
+        return data
 
 
 @dataclass
-class ConceptDO:
+class KnowledgeUnitDTO:
     """concept结构体"""
 
+    # chunk_know_id
     id: str
     embedding: list[float]
-    conceptName: str
-    metadata: ConceptMetadata
+    text: str
+    metadata: KnowledgeUnitMetadata
 
 
-def save_concept(conceptDO: ConceptDO):
+def save_knowlege(knowledgeUnitDTO: KnowledgeUnitDTO):
+    collection = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    collection.upsert(
+        ids=[knowledgeUnitDTO.id],
+        embeddings=[knowledgeUnitDTO.embedding],
+        documents=[knowledgeUnitDTO.text],
+        metadatas=[knowledgeUnitDTO.metadata.to_dict()],
+    )
+
+
+@dataclass
+class ConceptDTO:
+    """concept结构体"""
+
+    # hash(normalized_concept)
+    id: str
+    embedding: list[float]
+    normalized_concept: str
+
+
+def save_concept(conceptDTO: ConceptDTO):
     collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)
     collection.upsert(
-        ids=[conceptDO.id],
-        embeddings=[conceptDO.embedding],
-        documents=[conceptDO.conceptName],
-        metadatas=[conceptDO.metadata.to_dict()],
+        ids=[conceptDTO.id],
+        embeddings=[conceptDTO.embedding],
+        documents=[conceptDTO.normalized_concept],
     )

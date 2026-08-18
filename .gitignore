@@ -50,3 +50,6 @@ tutorials/*.md
 
 # llm相关原理
 llm/
+
+# sqlite
+data/sqlite

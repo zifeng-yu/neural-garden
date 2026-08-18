@@ -12,3 +12,6 @@ chroma:
 
 pilot_dataset:
   path: "data/pilot"
+
+sqlite:
+  sqlite_directory: "data/sqlite/neural.db"

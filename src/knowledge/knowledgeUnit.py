@@ -15,8 +15,7 @@ class KnowledgeUnit:
     summary: str
     keywords: list[str]
     content: str
-    source: str
-    unit_id: str
+    id: str
 
     def to_dict(self) -> dict:
         """转换为字典（用于存储）"""
@@ -27,9 +26,7 @@ class KnowledgeUnit:
         return f"{self.title}。{self.summary}。关键词：{', '.join(self.keywords)}"
 
 
-def extract_knowledge_unit(
-    content: str, source: str, uuid: str
-) -> KnowledgeUnit | None:
+def extract_knowledge_unit(content: str, id: str) -> KnowledgeUnit | None:
     try:
         response_extractor: Response_extractor = extractor_by_llm(content)
         return KnowledgeUnit(
@@ -37,10 +34,8 @@ def extract_knowledge_unit(
             summary=response_extractor.summary,
             keywords=response_extractor.keywords,
             content=content,
-            source=source,
-            unit_id=uuid,
+            id=id,
         )
-    except Exception as e:
-        logger.exception(f"获取知识单元失败，失败原因 {e}")
-        logger.error(f"获取知识单元失败，文章为：{source}")
+    except Exception:
+        logger.exception("获取知识单元失败，id =%s , 失败原因 ", id)
     return None

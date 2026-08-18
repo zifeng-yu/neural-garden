@@ -1,17 +1,18 @@
 import logging
 from dataclasses import asdict, dataclass
 from enum import Enum
+import re
 from typing import Any
 
 import networkx as nx
 
 import src.config.logging_config as logging_config
 from src.embedding.getEmbedding import get_embedding
-from src.knowledgeGraph.graph_extractor import (
+from src.knowledgeGraph.concepts_extractor import (
     extract_concepts_from_text as get_concepts,
 )
-from src.knowledgeGraph.graph_extractor import extract_max_similarity_concept
-from src.knowledgeGraph.graph_extractor import (
+from src.knowledgeGraph.concepts_extractor import extract_max_similarity_concept
+from src.knowledgeGraph.concepts_relation import (
     extract_relations_from_text as get_relations,
 )
 from src.util.getHashValue import get_hash_value as hash
@@ -19,21 +20,17 @@ from src.vector_store.query_dao import (
     get_by_id_concept,
     search_by_threshold_concept,
 )
-from src.vector_store.save_dao import ConceptDO, ConceptMetadata, save_concept
+from src.vector_store.save_dao import (
+    ConceptDTO,
+    ConceptMetadata,
+    SourceChunks,
+    save_concept,
+)
+from src.repository.document_chunk_knowledge_units import query_by_ids as query_by_ids_knowledge
+from src.repository.document_chunks import query_by_ids as query_by_ids_chunk
+
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class KnowledgeDocument:
-    """文档结构"""
-
-    title: str
-    content: str
-
-    def to_dict(self) -> dict:
-        """转换为字典（用于存储）"""
-        return asdict(self)
 
 
 class NodeAttribute(str, Enum):
@@ -64,29 +61,18 @@ class RelationType(str, Enum):
 
 
 def get_documents_to_concepts(
-    documents: list[KnowledgeDocument],
-) -> list[dict[str, Any]]:
+    knowledgeUnit_title:str,chunk_content:str
+) :
     """
     提炼所有文档的概念
     """
     result = []
-    for doc in documents:
-        title = doc.title
-        content = doc.content
-        if len(title) == 0 or len(content) == 0:
-            continue
-        fulll_text = f"<文本标题>{title}</文本标题>\n<文本内容>{content}</文本内容>"
-        title_hash_uuid = hash(title)
-        concepts = get_concepts(fulll_text)
-        result.append(
-            {
-                "id": title_hash_uuid,
-                "title": title,
-                "full_text": fulll_text,
-                "concepts": concepts,
-            }
-        )
-    return result
+    if knowledgeUnit_title is None or chunk_content is None:
+        return result
+    if len(knowledgeUnit_title)==0 or len(chunk_content)==0:
+        return result
+    fulll_text = f"<文本标题>{knowledgeUnit_title}</文本标题>\n<文本内容>{chunk_content}</文本内容>"
+    return get_concepts(fulll_text)
 
 
 def resolve_concept(concept: str) -> dict[str, Any]:
@@ -144,11 +130,11 @@ def build_concept_graph(documents: list[KnowledgeDocument]) -> nx.DiGraph:
             )
             # 没入库->入库 有入库—>title不在->入库
             if query_before_similarity_id_chroma is None:
-                conceptDO = ConceptDO(
+                conceptDO = ConceptDTO(
                     id=hash(before_similarity_concept),
                     embedding=get_embedding(before_similarity_concept),
-                    conceptName=before_similarity_concept,
-                    metadata=ConceptMetadata(source=[doc_dict["title"]]),
+                    normalized_concept=before_similarity_concept,
+                    metadata=ConceptMetadata(source_chunks=[SourceChunks(..,..)]),
                 )
                 save_concept(conceptDO)
             else:

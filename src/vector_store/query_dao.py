@@ -7,33 +7,32 @@ from src.config.config import (
 )
 from src.embedding.getEmbedding import get_embedding
 from src.get_chroma_collection import get_collection
-from src.vector_store.save_dao import ConceptDO, ConceptMetadata
+from src.vector_store.save_dao import ConceptDTO
 
 logger = logging.getLogger(__name__)
 
 
-def get_by_id_concept(id: str) -> ConceptDO | None:
+def get_by_id_concept(id: str) -> ConceptDTO | None:
     collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)
     result = collection.get(ids=[id], include=["documents", "metadatas", "embeddings"])
     logger.info(f"向量搜索 概念id hash  {id} : {result}")
     if not result["ids"]:
         return None
-    return ConceptDO(
+    return ConceptDTO(
         id=result["ids"][0],
         embedding=result["embeddings"][0],
-        conceptName=result["documents"][0],
-        metadata=ConceptMetadata.from_dict(result["metadatas"][0]),
+        normalized_concept=result["documents"][0],
     )
 
 
 def search_by_threshold_concept(
-    query: str, threshold: float = 0.85, top_k: int = 1
-) -> list[ConceptDO] | None:
+    query: str, threshold: float = 0.2, top_k: int = 1
+) -> list[ConceptDTO]:
     collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)
     embedding = get_embedding(query)
     if embedding is None:
         logger.error("❌ Embedding 生成失败")
-        return None
+        return []
 
     results = collection.query(
         query_embeddings=[embedding],
@@ -44,22 +43,29 @@ def search_by_threshold_concept(
     concept_results = []
 
     documents = results.get("documents")
-    metadatas = results.get("metadatas")
     distances = results.get("distances")
 
-    if not documents or not metadatas or not distances:
+    if not documents or not distances:
         return []
-    for doc, meta, distance in zip(documents[0], metadatas[0], distances[0]):
+    for doc, distance in zip(documents[0], distances[0]):
         similarity = 1 - distance
-        logger.info(f" 概念 {query} : 最高相似度 概念 {doc} 相似度 {similarity}")
         if similarity > threshold:
             concept_results.append(
-                ConceptDO(
+                ConceptDTO(
                     id="",
                     embedding=[],
-                    conceptName=doc,
-                    metadata=ConceptMetadata.from_dict(meta),
+                    normalized_concept=doc,
                 )
             )
 
     return concept_results
+
+
+def log_concept_collection_size():
+    collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)
+    logger.info(f"log_concept_collection_size {collection.count()}")
+
+
+def log_knowledgeUnit_collection_size():
+    collection = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    logger.info(f"log_knowledgeUnit_collection_size {collection.count()}")
