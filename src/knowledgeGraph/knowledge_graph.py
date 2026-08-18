@@ -1,34 +1,14 @@
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from enum import Enum
-import re
 from typing import Any
 
 import networkx as nx
 
 import src.config.logging_config as logging_config
-from src.embedding.getEmbedding import get_embedding
-from src.knowledgeGraph.concepts_extractor import (
-    extract_concepts_from_text as get_concepts,
-)
-from src.knowledgeGraph.concepts_extractor import extract_max_similarity_concept
-from src.knowledgeGraph.concepts_relation import (
-    extract_relations_from_text as get_relations,
-)
-from src.util.getHashValue import get_hash_value as hash
-from src.vector_store.query_dao import (
-    get_by_id_concept,
-    search_by_threshold_concept,
-)
-from src.vector_store.save_dao import (
-    ConceptDTO,
-    ConceptMetadata,
-    SourceChunks,
-    save_concept,
-)
-from src.repository.document_chunk_knowledge_units import query_by_ids as query_by_ids_knowledge
-from src.repository.document_chunks import query_by_ids as query_by_ids_chunk
-
+from src.repository.concept_relations import query_all as query_all_concept_relations
+from src.repository.document_chunk_concepts import query_all as query_all_chunk_concepts
+from src.repository.documents import query_all as query_all_documents
 
 logger = logging.getLogger(__name__)
 
@@ -60,105 +40,33 @@ class RelationType(str, Enum):
     MENTION = "mentions"
 
 
-def get_documents_to_concepts(
-    knowledgeUnit_title:str,chunk_content:str
-) :
+def build_concept_graph() -> nx.DiGraph:
     """
-    提炼所有文档的概念
+    新版 只需要从sqlite读取所有数据，即可内存建立图
     """
-    result = []
-    if knowledgeUnit_title is None or chunk_content is None:
-        return result
-    if len(knowledgeUnit_title)==0 or len(chunk_content)==0:
-        return result
-    fulll_text = f"<文本标题>{knowledgeUnit_title}</文本标题>\n<文本内容>{chunk_content}</文本内容>"
-    return get_concepts(fulll_text)
-
-
-def resolve_concept(concept: str) -> dict[str, Any]:
-    """概念归一化"""
-    concept_results_similarity = search_by_threshold_concept(query=concept)
-    if concept_results_similarity is not None and len(concept_results_similarity) > 0:
-        max_similarity_concepts = extract_max_similarity_concept(
-            concepts=concept,
-            similarity_concepts=[x.conceptName for x in concept_results_similarity],
-        )
-        if max_similarity_concepts is not None and len(max_similarity_concepts) > 0:
-            logger.info(
-                f"新增加概念 {concept} 最相似概念 llm判断结果：{max_similarity_concepts}"
-            )
-            return {"is_relove": True, "resolve_concept": max_similarity_concepts[0]}
-    return {"is_relove": False}
-
-
-def build_concept_graph(documents: list[KnowledgeDocument]) -> nx.DiGraph:
-    """
-    从文档列表构建概念图
-    文档：node(uuid,type="document",title="文档标题，这里等于文件名")
-    概念：node(concept_name,type="concept")
-    文档 - 概念：edge(uuid,concept_name,relation="mentions")
-    概念 - 概念：edge(concept_name,concept_name,relation=relation_from_llm")
-    Args:
-        document:文档列表，每个文档包含 {'title':str,'content':str}
-
-    Returns:
-        NetworkX 图对象
-    """
-    G = nx.DiGraph()
-    # 1. 遍历documents得到所有概念 -> list[dict] dict id title full_text concepts
-    doc_to_concepts = get_documents_to_concepts(documents)
+    # 因为现在按照chunk产出概念，再归一，所以可能存在多边（概念A -> 概念B）
+    G = nx.MultiDiGraph()
+    # 1. 拉取数据
+    all_chunk_concetps = query_all_chunk_concepts()
+    all_documents = query_all_documents()
+    all_concept_relations = query_all_concept_relations()
     # 2. 生成图谱
-    for doc_dict in doc_to_concepts:
-        if doc_dict["concepts"] is None or len(doc_dict["concepts"]) == 0:
-            continue
-        G.add_node(
-            doc_dict["id"], type=NodeType.DOCUMENT.value, title=doc_dict["title"]
+    for docment in all_documents:
+        G.add_node(docment.id, type=NodeType.DOCUMENT.value, title=docment.file_name)
+    for chunk_concept in all_chunk_concetps:
+        G.add_node(chunk_concept.normalized_concept, type=NodeType.CONCEPT.value)
+        G.add_edge(
+            chunk_concept.document_id,
+            chunk_concept.normalized_concept,
+            relation=RelationType.MENTION.value,
         )
-        concepts_ending = []
-        for concept in doc_dict["concepts"]:
-            # 查询概念是否已经入库
-            query_id_chroma = get_by_id_concept(hash(concept))
-            before_similarity_concept = concept
-            if query_id_chroma is None:
-                # 不在库中，
-                resolve_concept_result = resolve_concept(concept=concept)
-            if resolve_concept_result["is_relove"]:
-                before_similarity_concept = resolve_concept_result["resolve_concept"]
-            # 查询概念是否已经入库(概念可能更新)
-            query_before_similarity_id_chroma = get_by_id_concept(
-                hash(before_similarity_concept)
-            )
-            # 没入库->入库 有入库—>title不在->入库
-            if query_before_similarity_id_chroma is None:
-                conceptDO = ConceptDTO(
-                    id=hash(before_similarity_concept),
-                    embedding=get_embedding(before_similarity_concept),
-                    normalized_concept=before_similarity_concept,
-                    metadata=ConceptMetadata(source_chunks=[SourceChunks(..,..)]),
-                )
-                save_concept(conceptDO)
-            else:
-                if (
-                    doc_dict["title"]
-                    not in query_before_similarity_id_chroma.metadata.source
-                ):
-                    query_before_similarity_id_chroma.metadata.source.append(
-                        doc_dict["title"]
-                    )
-                save_concept(query_before_similarity_id_chroma)
 
-            G.add_node(before_similarity_concept, type=NodeType.CONCEPT.value)
-            G.add_edge(
-                doc_dict["id"],
-                before_similarity_concept,
-                relation=RelationType.MENTION.value,
-            )
-            concepts_ending.append(before_similarity_concept)
-
-        relations = get_relations(doc_dict["full_text"], concepts_ending)
-        for source, realtion, target in relations:
-            if source in G.nodes and target in G.nodes:
-                G.add_edge(source, target, relation=realtion)
+    for concept_relation in all_concept_relations:
+        G.add_edge(
+            concept_relation.source_concept,
+            concept_relation.target_concept,
+            relation=concept_relation.relation,
+        )
 
     return G
 

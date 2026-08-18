@@ -1,13 +1,9 @@
-import json
 import logging
 import os
-
-import chromadb
+from re import I
 
 import src.config.logging_config as logging_config
 from src.config.config import (
-    CHROMA_KNOWLEDGE_TABLE_NAME,
-    PERSIST_DIRECTORY,
     PILOT_DATASET_PATH,
 )
 from src.document.splitter import markdown_spilt
@@ -18,11 +14,16 @@ from src.knowledgeGraph.concepts import (
     documents_to_concepts,
     normalized_concept,
 )
-from src.repository import document_chunk_concepts
-from src.repository.document_chunk_concepts import query_by_document_id
+from src.knowledgeGraph.concepts_relation import extract_relations_from_text
+from src.repository.concept_relations import RelationSource, insert_concept_relation
+from src.repository.document_chunk_concepts import (
+    query_by_chunk_id,
+    query_by_document_id,
+)
 from src.repository.document_chunk_knowledge_units import (
     query_by_ids as query_by_ids_knowunit,
 )
+from src.repository.document_chunks import query_by_ids as query_by_id_chunks
 from src.repository.document_insert_domain import (
     InsertChunk,
     InsertConcepts,
@@ -37,6 +38,7 @@ from src.repository.documents import (
 )
 from src.repository.documents import query_by_id as query_by_id_document
 from src.repository.init import sqlite_table_init
+from src.repository.realtion_evidence import EvidenceRoleEnum, insert_relation_evidence
 from src.util.getHashValue import get_hash_value as hash
 from src.vector_store.query_dao import (
     log_concept_collection_size,
@@ -68,7 +70,7 @@ def load_document(file_path: str) -> str:
         return f.read()
 
 
-def index_file(file_path: str, persist_dir: str):
+def index_file(file_path: str):
     """
     将单个文件导入 Chroma 向量库
 
@@ -161,7 +163,7 @@ def index_file(file_path: str, persist_dir: str):
 
     logger.info(f"save_db_result {save_db_result}")
 
-    # 保存knowledgeUnit
+    # 保存knowledgeUnit 准备con
     if "knowledge_unit_ids" in save_db_result:
         knowledgeUnit_ids = save_db_result["knowledge_unit_ids"]
         knowledgeUnit_list = query_by_ids_knowunit(knowledgeUnit_ids)
@@ -198,8 +200,40 @@ def index_file(file_path: str, persist_dir: str):
     log_concept_collection_size()
     log_knowledgeUnit_collection_size()
 
+    # 建立chunk内部概念连接
+    if "chunk_ids" in save_db_result:
+        chunks_do = query_by_id_chunks(save_db_result["chunk_ids"])
+        if chunks_do:
+            for chunk_do in chunks_do:
+                concept_dos = query_by_chunk_id(chunk_do.id)
+                if concept_dos:
+                    chunk_content = chunk_do.content
+                    concepts = [x.normalized_concept for x in concept_dos]
+                    chunk_concept_relations = extract_relations_from_text(
+                        chunk_content, concepts
+                    )
+                    for (
+                        concept_source,
+                        realtion,
+                        concept_target,
+                    ) in chunk_concept_relations:
+                        if concept_source in concepts and concept_target in concepts:
+                            concept_realtion_id = insert_concept_relation(
+                                concept_source,
+                                concept_target,
+                                realtion,
+                                RelationSource.DOCUMENT_INTERNAL,
+                            )
+                            if concept_realtion_id is not None:
+                                insert_relation_evidence(
+                                    concept_realtion_id,
+                                    chunk_do.document_id,
+                                    chunk_do.id,
+                                    EvidenceRoleEnum.BOTH,
+                                )
 
-def index_directory(dir_path: str, persist_dir: str):
+
+def index_directory(dir_path: str):
     """
     批量索引目录下所有 .md 文件
 
@@ -217,7 +251,7 @@ def index_directory(dir_path: str, persist_dir: str):
 
     for filename in md_files:
         file_path = os.path.join(dir_path, filename)
-        index_file(file_path, persist_dir)
+        index_file(file_path)
 
     logger.info(f"\n✅ 批量索引完成，共 {len(md_files)} 个文件")
 
@@ -233,15 +267,13 @@ if __name__ == "__main__":
 
     # 配置路径
     base_dir = os.path.dirname(os.path.dirname(__file__))
-    persist_dir = os.path.join(base_dir, PERSIST_DIRECTORY)
     pilot_dir = os.path.join(base_dir, PILOT_DATASET_PATH)
 
     # 默认索引 pilot/ 目录
     logger.info("🌱 Neural Garden 索引器（骨架版本）")
     logger.info(f"📂 索引目录：{pilot_dir}")
-    logger.info(f"💾 存储目录：{persist_dir}\n")
 
-    index_directory(pilot_dir, persist_dir)
+    index_directory(pilot_dir)
 
     logger.info("\n" + "=" * 40)
     logger.info("💡 提示：运行以下命令搜索知识：")

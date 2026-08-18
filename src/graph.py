@@ -6,15 +6,12 @@
 """
 
 import logging
-import os
 from typing import Any
 
 import networkx as nx
 
 import src.config.logging_config as logging_config
-from src.config.config import PILOT_DATASET_PATH
 from src.knowledgeGraph.knowledge_graph import (
-    KnowledgeDocument,
     NodeAttribute,
     NodeType,
     build_concept_graph,
@@ -26,52 +23,8 @@ from src.util.visualizeGraph import visualize_graph
 logger = logging.getLogger(__name__)
 
 
-def load_documents(file_path: str) -> str:
-    """
-    读取 Markdown 文件内容
-
-    Args:
-        file_path: 文件路径
-
-    Returns:
-        文件内容字符串
-    """
-    with open(file_path, "r", encoding="utf-8") as f:
-        return f.read()
-
-
-def index_directory(dir_path: str) -> list[KnowledgeDocument] | None:
-    """
-    批量索引目录下所有 .md 文件
-
-    Args:
-        dir_path: 目录路径
-    """
-    md_files = [f for f in os.listdir(dir_path) if f.endswith(".md")]
-
-    if not md_files:
-        print(f"⚠️  未找到 .md 文件：{dir_path}")
-        return
-
-    logger.info(f"📂 发现 {len(md_files)} 个 Markdown 文件\n")
-
-    result = []
-    for filename in md_files:
-        file_path = os.path.join(dir_path, filename)
-        knowledge_document = KnowledgeDocument(
-            title=os.path.basename(file_path), content=load_documents(file_path)
-        )
-        result.append(knowledge_document)
-
-    logger.info(f"\n✅ 批量生成文件对象，共 {len(md_files)} 个文件")
-    return result
-
-
-def build_graph(dir_path: str) -> nx.DiGraph | None:
-    knowledgeDocuments = index_directory(dir_path)
-    if knowledgeDocuments is None:
-        return None
-    return build_concept_graph(knowledgeDocuments)
+def build_graph() -> nx.DiGraph | None:
+    return build_concept_graph()
 
 
 def graph_png(G: nx.DiGraph):
@@ -90,13 +43,7 @@ def search(G: nx.DiGraph, concept: str, depth: int) -> list[dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    from src.vector_store.reset import resetDB_CONCEPT
-
-    resetDB_CONCEPT()
-
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    pilot_dir = os.path.join(base_dir, PILOT_DATASET_PATH)
-    knowledge_graph = build_graph(pilot_dir)
+    knowledge_graph = build_graph()
     if knowledge_graph is not None:
         graph_png(knowledge_graph)
         log_stats(knowledge_graph)
@@ -116,17 +63,10 @@ if __name__ == "__main__":
 
         from src.util.getHashValue import get_hash_value as hash
 
-        titles = [
-            "01-金融深潜 - 日本负利率.md",
-            "02-算法 - 重复检测.md",
-            "03-生物学 - 昂贵的代价.md",
-            "04-公众号 - 花自己的钱.md",
-            "05-认知科学 - 专家预测.md",
-        ]
+        titles = [1, 2, 3, 4, 5]
         titles_concept_map = {}
         for title in titles:
-            hash_value = hash(title)
-            doc_hava_concepts = list(knowledge_graph.successors(hash_value))
+            doc_hava_concepts = list(knowledge_graph.successors(title))
             titles_concept_map[title] = doc_hava_concepts
         logger.info(titles_concept_map)
         from collections import defaultdict
@@ -158,8 +98,7 @@ if __name__ == "__main__":
         from collections import deque
 
         result = []
-        hash_value = hash(titles[2])
-        queue = deque([(hash_value, [hash_value])])
+        queue = deque([(titles[2], [titles[2]])])
 
         while queue:
             node, path = queue.popleft()

@@ -107,3 +107,24 @@ def query_by_id(id: int):
         data["updated_at"] = datetime.fromisoformat(data["updated_at"])
 
         return DocumentDO(**data)
+
+
+def query_all() -> list[DocumentDO]:
+    with get_sqlite_connection() as conn:
+
+        rows = conn.execute(
+            f"""
+                    select * from {TABLE_NAME}
+                    """,
+        ).fetchall()
+        if not rows:
+            return []
+
+        result = []
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            result.append(DocumentDO(**data))
+
+        return result

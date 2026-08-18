@@ -111,6 +111,35 @@ def create_table_init():
         """
         conn.execute(sql_concept_relations)
 
+        sql_relation_evidence = """
+        CREATE TABLE IF NOT EXISTS relation_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            relation_id INTEGER NOT NULL,
+            doc_id INTEGER NOT NULL,
+            chunk_id INTEGER NOT NULL,
+
+            evidence_role TEXT NOT NULL CHECK (
+                evidence_role IN ('source', 'target', 'both')
+            ),
+
+            created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+            updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+
+            FOREIGN KEY (relation_id) REFERENCES concept_relations(id),
+            FOREIGN KEY (doc_id) REFERENCES documents(id),
+            FOREIGN KEY (chunk_id) REFERENCES document_chunk(id),
+
+            UNIQUE (
+                relation_id,
+                doc_id,
+                chunk_id,
+                evidence_role
+            )
+        );
+        """
+        conn.execute(sql_relation_evidence)
+
         conn.commit()
 
 
@@ -118,6 +147,8 @@ def drop_table():
     with get_sqlite_connection() as conn:
 
         sql = """
+            DROP TABLE IF EXISTS relation_evidence;
+            DROP TABLE IF EXISTS concept_relations;
             DROP TABLE IF EXISTS document_chunk_concepts;
             DROP TABLE IF EXISTS document_chunk_knowledge_units;
             DROP TABLE IF EXISTS document_chunks;
