@@ -235,16 +235,25 @@ visualize_graph(G, "graphPNG/", "概念图")
 
 ## 课程进度
 
+### 主课程（按周推送）
+
 | 课次 | 主题 | 状态 | 核心功能 | 推送日期 |
 |------|------|------|---------|----------|
 | Lesson 01 | 5 分钟跑起来 | ✅ 完成 | 项目骨架 + Hello World 搜索 | 2026-07-19 |
 | Lesson 02 | 知识单元提取 | ✅ 完成 | LLM 提取 + 向量化 + 增量更新 | 2026-07-26 |
 | Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 + --resetDB 参数 | 2026-07-26 |
 | Lesson 03 | 向量搜索入门 | ✅ 完成 | Chroma 搜索 + 相似度计算 | 2026-08-03 |
-| Lesson 04 | 概念图构建 | ✅ 完成 | NetworkX + 概念归一化 + 重试机制 | 2026-08-09 (提前) |
+| Lesson 04 | 概念图构建 | ✅ 完成 | NetworkX + 概念归一化 + 重试机制 | 2026-08-05 (提前) |
 | Lesson 05 | Insight 记录 | ✅ 完成 | `insight.py` + Markdown 导出 | 2026-08-11 (补) |
-| Lesson 06 | 反馈闭环 | ⏳ 待开发 | `feedback.py` + 数据迭代 | 2026-08-16 |
-| Lesson 07 | 自动化部署 | ⏳ 待开发 | Cron + MCP 封装 + 验收 | 2026-09-07 |
+| Lesson 06 | 反馈闭环 | ✅ 完成 | `feedback.py` + 数据迭代 | 2026-08-23 |
+| Lesson 07 | 自动化部署 | ⏳ 待推送 | Cron + MCP 封装 + 验收 | 2026-09-07 |
+
+### 补充课程（额外材料，不通过 cron 推送）
+
+| 课次 | 主题 | 状态 | 说明 |
+|------|------|------|------|
+| Extra 01 | SQLite 基础与实战 | ✅ 完成 | 生产表（8 张）vs 教程简化表（3 张）说明 |
+| Extra 02 | 反馈闭环与数据完整性 | ✅ 完成 | del/copy/relation 逻辑实现指南 |
 
 ---
 
@@ -262,18 +271,32 @@ neural-garden/
 │   ├── indexer.py              # 知识索引器（增量更新）
 │   ├── search.py               # 向量搜索入口
 │   ├── graph.py                # 知识图谱构建
-│   ├── insight.py              # Insight 记录模块
+│   ├── insight.py              # Insight 记录模块（Markdown 导出）
+│   ├── feedback.py             # 反馈闭环模块（搜索日志/数据迭代）
+│   ├── storage.py              # SQLite 存储模块（简化表：3 张）
+│   ├── similarity.py           # 相似度计算工具
 │   ├── get_chroma_collection.py # Chroma 集合获取工具
+│   ├── get_sqlite_connection.py # SQLite 连接工具
 │   ├── config/
 │   │   ├── config.py           # 配置加载
 │   │   └── logging_config.py   # 日志配置
+│   ├── document/
+│   │   └── markdown_split.py   # Markdown 分块工具
 │   ├── embedding/
 │   │   └── getEmbedding.py     # Embedding API 调用
 │   ├── knowledge/
-│   │   └── knowledgeUnit.py    # 知识单元提取
+│   │   ├── knowledgeUnit.py    # 知识单元提取
+│   │   └── concepts.py         # 概念提取与归一化
 │   ├── knowledgeGraph/
 │   │   ├── knowledge_graph.py  # 图构建主逻辑
 │   │   └── graph_extractor.py  # 概念/关系抽取（LLM）
+│   ├── repository/             # 生产表 DAO 层（8 张表）
+│   │   ├── create_table.py     # 表初始化
+│   │   ├── documents.py        # 文档 CRUD
+│   │   ├── document_chunks.py  # 分块 CRUD（含级联删除）
+│   │   ├── document_chunk_knowledge_units.py
+│   │   ├── document_chunk_concepts.py
+│   │   └── concept_relations.py
 │   ├── vector_store/
 │   │   ├── save_dao.py         # 向量存储保存
 │   │   ├── query_dao.py        # 向量存储查询
@@ -291,6 +314,11 @@ neural-garden/
     ├── test_concept_normalization.py  # 概念归一化测试
     └── test_retry.py                  # 重试机制测试
 ```
+
+**架构说明**：
+- **简化表**（`src/storage.py`）：3 张表（concepts/insights/search_logs），用于教程学习
+- **生产表**（`src/repository/*`）：8 张表（documents/document_chunks/...），用于生产环境
+- **双层存储**：SQLite（元数据/关系）+ ChromaDB（Embedding/相似度检索）
 
 ---
 
@@ -386,40 +414,56 @@ print(insight.to_markdown())
 
 | 组件 | 技术 |
 |------|------|
-| 向量存储 | ChromaDB（SQLite + HNSW 索引） |
-| 概念存储 | ChromaDB（独立 collection） |
-| 图存储 | NetworkX（内存 DiGraph） |
-| Embedding | DashScope text-embedding-v1（768 维） |
-| LLM | DashScope qwen3.5-plus（知识提取、关系抽取） |
-| 配置管理 | PyYAML + python-dotenv |
-| 日志系统 | Python logging（滚动文件 + 分级控制） |
-| 语言 | Python 3.9+ |
+| **关系存储** | SQLite（8 张生产表：documents/document_chunks/...） |
+| **向量存储** | ChromaDB（SQLite + HNSW 索引，2 个 collection） |
+| **图存储** | NetworkX（内存 DiGraph） |
+| **Embedding** | DashScope text-embedding-v1（768 维） |
+| **LLM** | DashScope qwen3.5-plus（知识提取、关系抽取） |
+| **配置管理** | PyYAML + python-dotenv |
+| **日志系统** | Python logging（滚动文件 + 分级控制） |
+| **语言** | Python 3.9+ |
+
+**架构说明**：
+- **教程简化表**（`src/storage.py`）：3 张表（concepts/insights/search_logs），用于学习 SQLite 基础
+- **生产表**（`src/repository/*`）：8 张表，支持增量更新（del/copy/new）和概念关系追溯
+- **双层架构**：SQLite（元数据/关系/溯源）+ ChromaDB（Embedding/相似度检索）
 
 ---
 
 ## 最终架构
 
+### V1：纯向量检索（Lesson 01-03）
+
 ```
-             Query
-               |
-          Embedding
-               |
-          ChromaDB
-               |
-          TopK Docs
-               |
-            UUID
-               |
-          GraphRAG
-               |
-        Concepts Expansion
-               |
-       Related Documents
-               |
-        Reranker
-               |
-             LLM
+Markdown → KnowledgeUnit → Embedding → ChromaDB → Search
 ```
+
+### V2：概念图增强（Lesson 04-05）
+
+```
+Markdown → KnowledgeUnit + Concept → ChromaDB + NetworkX → Graph
+                                           ↓
+                                      Insight (Markdown)
+```
+
+### V3：SQLite + ChromaDB 双层架构（Lesson 06-07 + 补充课程）
+
+```
+                    ┌──────────────┐
+Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
+                    │  (8 张表)     │
+                    └──────┬───────┘
+                           ↓
+                    ┌──────────────┐
+                    │  ChromaDB    │ → Embedding/相似度检索
+                    │  (2 个 Collection) │
+                    └──────────────┘
+```
+
+**双层架构优势**：
+- **SQLite 擅长**：`SELECT * FROM concepts WHERE category = '货币政策'`（精确查询）
+- **ChromaDB 擅长**：「找和『负利率』语义相似的概念」（模糊匹配）
+- **合并结果**：结构化查询 + 相似度检索 → 完整答案
 
 ---
 
@@ -438,6 +482,8 @@ print(insight.to_markdown())
 - **日志系统**：生产级日志配置（控制台 + 滚动文件 + 错误日志）
 - **命令行参数**：支持 `--resetDB` 按需清空向量库
 - **重试机制**：API 调用失败自动重试（`src/util/retryUtil.py`）
+- **增量更新**：基于 content_hash 检测文件变化，支持 del/copy/new 三种状态
+- **数据完整性**：文档更新时自动清理旧数据，相同内容直接复制 ID（避免重复处理）
 
 ### 知识图谱
 
