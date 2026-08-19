@@ -67,7 +67,7 @@ class DiGraphStats:
         return "\n".join(lines)
 
 
-def get_DiGraph_stats(G: nx.DiGraph) -> DiGraphStats:
+def get_DiGraph_stats(G: nx.MultiDiGraph) -> DiGraphStats:
     """
     获取图的统计信息
     Args:

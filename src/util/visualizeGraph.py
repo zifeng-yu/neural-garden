@@ -9,7 +9,7 @@ from src.knowledgeGraph.knowledge_graph import NodeAttribute, NodeType
 logger = logging.getLogger(__name__)
 
 
-def visualize_graph(G: nx.Graph, output_path: str, title: str = "概念图"):
+def visualize_graph(G: nx.MultiDiGraph, output_path: str, title: str = "概念图"):
     """
     可视化概念图
     Args:

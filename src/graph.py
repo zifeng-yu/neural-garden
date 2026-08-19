@@ -23,22 +23,22 @@ from src.util.visualizeGraph import visualize_graph
 logger = logging.getLogger(__name__)
 
 
-def build_graph() -> nx.DiGraph | None:
+def build_graph() -> nx.MultiDiGraph | None:
     return build_concept_graph()
 
 
-def graph_png(G: nx.DiGraph):
+def graph_png(G: nx.MultiDiGraph):
     # 可视化
     visualize_graph(G, "graphPNG//", "Pilot Dataset 概念图")
 
 
-def log_stats(G: nx.DiGraph):
+def log_stats(G: nx.MultiDiGraph):
     # 分析统计信息
     digraphtStats = get_DiGraph_stats(G)
     logger.info(digraphtStats.to_stats_text())
 
 
-def search(G: nx.DiGraph, concept: str, depth: int) -> list[dict[str, Any]]:
+def search(G: nx.MultiDiGraph, concept: str, depth: int) -> list[dict[str, Any]]:
     return search_by_node(G, concept, depth)
 
 

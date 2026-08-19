@@ -40,7 +40,7 @@ class RelationType(str, Enum):
     MENTION = "mentions"
 
 
-def build_concept_graph() -> nx.DiGraph:
+def build_concept_graph() -> nx.MultiDiGraph:
     """
     新版 只需要从sqlite读取所有数据，即可内存建立图
     """
@@ -71,7 +71,9 @@ def build_concept_graph() -> nx.DiGraph:
     return G
 
 
-def search_by_node(G: nx.DiGraph, concept: str, depth: int = 2) -> list[dict[str, Any]]:
+def search_by_node(
+    G: nx.MultiDiGraph, concept: str, depth: int = 2
+) -> list[dict[str, Any]]:
     """
     按概念搜索关联概念
     Args:

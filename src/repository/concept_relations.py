@@ -8,7 +8,7 @@ from src.repository.base_do import BaseDO
 TABLE_NAME = "concept_relations"
 
 
-class RelationSource(str, Enum):
+class RelationType(str, Enum):
     # 文档内
     DOCUMENT_INTERNAL = "document_internal"
     # 跨文档
@@ -20,7 +20,7 @@ class ConceptRelations(BaseDO):
     source_concept: str
     target_concept: str
     relation: str
-    relation_source: RelationSource
+    relation_type: RelationType
     confidence: float
 
 
@@ -28,7 +28,7 @@ def insert_concept_relation(
     source_concept: str,
     target_concept: str,
     relation: str,
-    relation_source: RelationSource,
+    relation_type: RelationType,
     confidence: float | None = None,
 ):
     with get_sqlite_connection() as conn:
@@ -40,23 +40,32 @@ def insert_concept_relation(
                 source_concept,
                 target_concept,
                 relation,
-                relation_source,
+                relation_type,
                 confidence
             )
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (
+                source_concept,
+                target_concept,
+                relation,
+                relation_type
+            )
+            DO UPDATE SET
+                id = id
+            RETURNING id
             """,
             (
                 source_concept,
                 target_concept,
                 relation,
-                relation_source.value,
+                relation_type.value,
                 confidence,
             ),
         )
-
+        id = cursor.fetchone()[0]
         conn.commit()
 
-        return cursor.lastrowid
+        return id
 
 
 def query_all() -> list[ConceptRelations]:

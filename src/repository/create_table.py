@@ -97,7 +97,7 @@ def create_table_init():
             source_concept TEXT NOT NULL,
             target_concept TEXT NOT NULL,
             relation TEXT NOT NULL,
-            relation_source TEXT NOT NULL,
+            relation_type TEXT NOT NULL,
             confidence REAL,
             created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
             updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
@@ -105,7 +105,7 @@ def create_table_init():
                 source_concept,
                 target_concept,
                 relation,
-                relation_source
+                relation_type
             )
         );
         """

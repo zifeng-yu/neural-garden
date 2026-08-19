@@ -37,6 +37,15 @@ def insert_relation_evidence(
                 evidence_role
             )
             VALUES (?, ?, ?, ?)
+            ON CONFLICT (
+                relation_id,
+                doc_id,
+                chunk_id,
+                evidence_role
+            )
+            DO UPDATE SET
+                id = id
+            RETURNING id
             """,
             (
                 relation_id,
@@ -45,7 +54,7 @@ def insert_relation_evidence(
                 evidence_role.value,
             ),
         )
-
+        id = cursor.fetchone()[0]
         conn.commit()
 
-        return cursor.lastrowid
+        return id

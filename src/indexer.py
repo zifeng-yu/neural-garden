@@ -15,7 +15,7 @@ from src.knowledgeGraph.concepts import (
     normalized_concept,
 )
 from src.knowledgeGraph.concepts_relation import extract_relations_from_text
-from src.repository.concept_relations import RelationSource, insert_concept_relation
+from src.repository.concept_relations import RelationType, insert_concept_relation
 from src.repository.document_chunk_concepts import (
     query_by_chunk_id,
     query_by_document_id,
@@ -222,7 +222,7 @@ def index_file(file_path: str):
                                 concept_source,
                                 concept_target,
                                 realtion,
-                                RelationSource.DOCUMENT_INTERNAL,
+                                RelationType.DOCUMENT_INTERNAL,
                             )
                             if concept_realtion_id is not None:
                                 insert_relation_evidence(
