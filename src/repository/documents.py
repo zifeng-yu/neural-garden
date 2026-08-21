@@ -55,61 +55,70 @@ def _insert_document(
     return cursor.lastrowid
 
 
+def _query_by_file_name_hash(conn: sqlite3.Connection, file_name_hash: str) -> DocumentDO | None:
+    row = conn.execute(
+        f"""
+        select * from {TABLE_NAME} where file_name_hash = ?
+        """,
+        (file_name_hash,),
+    ).fetchone()
+    if row is None:
+        return None
+
+    data = dict(row)
+    data["created_at"] = datetime.fromisoformat(data["created_at"])
+    data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+
+    return DocumentDO(**data)
+
+
 def query_by_file_name_hash(file_name_hash: str) -> DocumentDO | None:
     with get_sqlite_connection() as conn:
+        return _query_by_file_name_hash(conn, file_name_hash)
 
-        row = conn.execute(
-            f"""
-            select * from {TABLE_NAME} where file_name_hash = ?
+
+def _query_by_content_hash(conn: sqlite3.Connection, content_hash: str) -> DocumentDO | None:
+    row = conn.execute(
+        f"""
+            select * from {TABLE_NAME} where content_hash = ?
             """,
-            (file_name_hash,),
-        ).fetchone()
-        if row is None:
-            return None
+        (content_hash,),
+    ).fetchone()
+    if row is None:
+        return None
 
-        data = dict(row)
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+    data = dict(row)
+    data["created_at"] = datetime.fromisoformat(data["created_at"])
+    data["updated_at"] = datetime.fromisoformat(data["updated_at"])
 
-        return DocumentDO(**data)
+    return DocumentDO(**data)
 
 
 def query_by_content_hash(content_hash: str) -> DocumentDO | None:
     with get_sqlite_connection() as conn:
+        return _query_by_content_hash(conn, content_hash)
 
-        row = conn.execute(
-            f"""
-                select * from {TABLE_NAME} where content_hash = ?
-                """,
-            (content_hash,),
-        ).fetchone()
-        if row is None:
-            return None
 
-        data = dict(row)
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+def _query_by_id(conn: sqlite3.Connection, id: int) -> DocumentDO | None:
+    row = conn.execute(
+        f"""
+            select * from {TABLE_NAME} where id = ?
+            """,
+        (id,),
+    ).fetchone()
+    if row is None:
+        return None
 
-        return DocumentDO(**data)
+    data = dict(row)
+    data["created_at"] = datetime.fromisoformat(data["created_at"])
+    data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+
+    return DocumentDO(**data)
 
 
 def query_by_id(id: int):
     with get_sqlite_connection() as conn:
-
-        row = conn.execute(
-            f"""
-                select * from {TABLE_NAME} where id = ?
-                """,
-            (id,),
-        ).fetchone()
-        if row is None:
-            return None
-
-        data = dict(row)
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
-
-        return DocumentDO(**data)
+        return _query_by_id(conn, id)
 
 
 def query_all() -> list[DocumentDO]:

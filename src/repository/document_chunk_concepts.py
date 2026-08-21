@@ -126,34 +126,40 @@ def query_by_document_id(
         return result
 
 
-def query_by_not_document_id_and_in_normalized_concepts(
-    document_id: int, normalized_concepts: list[str]
+def _query_by_not_document_id_and_in_normalized_concepts(
+    conn: sqlite3.Connection, document_id: int, normalized_concepts: list[str]
 ) -> list[DocumentChunkConceptsDO]:
     if not normalized_concepts:
         return []
     placeholders = ",".join("?" for _ in normalized_concepts)
+
+    rows = conn.execute(
+        f"""
+                select * from {TABLE_NAME} where document_id != ? and normalized_concept in({placeholders})
+                """,
+        (
+            document_id,
+            *normalized_concepts,
+        ),
+    ).fetchall()
+    if not rows:
+        return []
+
+    result = []
+    for row in rows:
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        result.append(DocumentChunkConceptsDO(**data))
+
+    return result
+
+
+def query_by_not_document_id_and_in_normalized_concepts(
+    document_id: int, normalized_concepts: list[str]
+) -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
-
-        rows = conn.execute(
-            f"""
-                    select * from {TABLE_NAME} where document_id != ? and normalized_concept in({placeholders})
-                    """,
-            (
-                document_id,
-                *normalized_concepts,
-            ),
-        ).fetchall()
-        if not rows:
-            return []
-
-        result = []
-        for row in rows:
-            data = dict(row)
-            data["created_at"] = datetime.fromisoformat(data["created_at"])
-            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
-            result.append(DocumentChunkConceptsDO(**data))
-
-        return result
+        return _query_by_not_document_id_and_in_normalized_concepts(conn, document_id, normalized_concepts)
 
 
 def _query_by_document_id(
