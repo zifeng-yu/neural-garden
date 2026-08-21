@@ -10,34 +10,38 @@ Neural Garden 单元测试套件
 """
 
 import os
+import sqlite3
 import sys
 import unittest
-import sqlite3
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.repository.documents import (
-    insert_document,
-    _query_by_file_name_hash,
-    _query_by_content_hash,
-    delete_by_id,
-)
-from src.repository.document_chunks import (
-    insert_document_chunk,
-    _query_by_document_id,
-    delete_by_document_id,
+from src.repository.create_table import create_table_init_for_memory
+from src.repository.document_chunk_concepts import (
+    _query_by_document_id as query_concepts_by_document_id,
 )
 from src.repository.document_chunk_concepts import (
-    insert_concept,
-    _query_by_document_id as query_concepts_by_document_id,
     _query_by_not_document_id_and_in_normalized_concepts,
+    insert_concept,
+)
+from src.repository.document_chunk_concepts import (
     delete_by_document_id as delete_concepts_by_document_id,
 )
+from src.repository.document_chunks import (
+    _query_by_document_id,
+    delete_by_document_id,
+    insert_document_chunk,
+)
+from src.repository.documents import (
+    _query_by_content_hash,
+    _query_by_file_name_hash,
+    delete_by_id,
+    insert_document,
+)
 from src.util.getHashValue import get_hash_value as hash
-from src.repository.create_table import create_table_init_for_memory
 
 
 def get_memory_sqlite_connection():
@@ -57,7 +61,7 @@ class TestDocumentsRepository(unittest.TestCase):
 
     def tearDown(self):
         """每个测试后关闭连接（自动清理数据）"""
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             self.conn.close()
 
     def test_insert_and_query_by_file_name_hash(self):
@@ -118,7 +122,9 @@ class TestDocumentChunksRepository(unittest.TestCase):
         content_hash = hash("test content")
 
         doc_id = insert_document(self.conn, file_name, file_name_hash, content_hash)
-        chunk_id = insert_document_chunk(self.conn, doc_id, 1, "chunk content 1", hash("chunk 1"))
+        chunk_id = insert_document_chunk(
+            self.conn, doc_id, 1, "chunk content 1", hash("chunk 1")
+        )
         self.assertGreater(chunk_id, 0)
 
         # 查询
@@ -159,8 +165,12 @@ class TestDocumentChunkConceptsRepository(unittest.TestCase):
         content_hash = hash("test content")
 
         doc_id = insert_document(self.conn, file_name, file_name_hash, content_hash)
-        chunk_id = insert_document_chunk(self.conn, doc_id, 1, "chunk content", hash("chunk"))
-        concept_id = insert_concept(self.conn, doc_id, chunk_id, "负利率", "负利率", hash("负利率"))
+        chunk_id = insert_document_chunk(
+            self.conn, doc_id, 1, "chunk content", hash("chunk")
+        )
+        concept_id = insert_concept(
+            self.conn, doc_id, chunk_id, "负利率", "负利率", hash("负利率")
+        )
         self.assertGreater(concept_id, 0)
 
         # 查询
@@ -174,16 +184,28 @@ class TestDocumentChunkConceptsRepository(unittest.TestCase):
         # 文档 A 有概念"负利率"
         file_name_a = "test_concept_doc_a.md"
         file_name_hash_a = hash(file_name_a)
-        doc_id_a = insert_document(self.conn, file_name_a, file_name_hash_a, hash("content a"))
-        chunk_id_a = insert_document_chunk(self.conn, doc_id_a, 1, "chunk a", hash("chunk a"))
-        insert_concept(self.conn, doc_id_a, chunk_id_a, "负利率", "负利率", hash("负利率"))
+        doc_id_a = insert_document(
+            self.conn, file_name_a, file_name_hash_a, hash("content a")
+        )
+        chunk_id_a = insert_document_chunk(
+            self.conn, doc_id_a, 1, "chunk a", hash("chunk a")
+        )
+        insert_concept(
+            self.conn, doc_id_a, chunk_id_a, "负利率", "负利率", hash("负利率")
+        )
 
         # 文档 B 也有概念"负利率"
         file_name_b = "test_concept_doc_b.md"
         file_name_hash_b = hash(file_name_b)
-        doc_id_b = insert_document(self.conn, file_name_b, file_name_hash_b, hash("content b"))
-        chunk_id_b = insert_document_chunk(self.conn, doc_id_b, 1, "chunk b", hash("chunk b"))
-        insert_concept(self.conn, doc_id_b, chunk_id_b, "负利率", "负利率", hash("负利率"))
+        doc_id_b = insert_document(
+            self.conn, file_name_b, file_name_hash_b, hash("content b")
+        )
+        chunk_id_b = insert_document_chunk(
+            self.conn, doc_id_b, 1, "chunk b", hash("chunk b")
+        )
+        insert_concept(
+            self.conn, doc_id_b, chunk_id_b, "负利率", "负利率", hash("负利率")
+        )
 
         # 查询"除了文档 A 外，还有哪些文档有'负利率'概念"
         result = _query_by_not_document_id_and_in_normalized_concepts(
@@ -199,9 +221,20 @@ class TestDocumentChunkConceptsRepository(unittest.TestCase):
         # 文档 A 有独有概念"测试独有概念"
         file_name_a = "test_concept_doc_unique.md"
         file_name_hash_a = hash(file_name_a)
-        doc_id_a = insert_document(self.conn, file_name_a, file_name_hash_a, hash("content a"))
-        chunk_id_a = insert_document_chunk(self.conn, doc_id_a, 1, "chunk a", hash("chunk a"))
-        insert_concept(self.conn, doc_id_a, chunk_id_a, "测试独有概念", "测试独有概念", hash("测试独有概念"))
+        doc_id_a = insert_document(
+            self.conn, file_name_a, file_name_hash_a, hash("content a")
+        )
+        chunk_id_a = insert_document_chunk(
+            self.conn, doc_id_a, 1, "chunk a", hash("chunk a")
+        )
+        insert_concept(
+            self.conn,
+            doc_id_a,
+            chunk_id_a,
+            "测试独有概念",
+            "测试独有概念",
+            hash("测试独有概念"),
+        )
 
         # 查询其他文档是否有"测试独有概念"
         result = _query_by_not_document_id_and_in_normalized_concepts(
@@ -229,13 +262,25 @@ class TestChromaCleanupLogic(unittest.TestCase):
         file_name_b = "test_shared_b.md"
         file_name_hash_b = hash(file_name_b)
 
-        doc_id_a = insert_document(self.conn, file_name_a, file_name_hash_a, hash("content a"))
-        chunk_id_a = insert_document_chunk(self.conn, doc_id_a, 1, "chunk a", hash("chunk a"))
-        insert_concept(self.conn, doc_id_a, chunk_id_a, "负利率", "负利率", hash("负利率"))
+        doc_id_a = insert_document(
+            self.conn, file_name_a, file_name_hash_a, hash("content a")
+        )
+        chunk_id_a = insert_document_chunk(
+            self.conn, doc_id_a, 1, "chunk a", hash("chunk a")
+        )
+        insert_concept(
+            self.conn, doc_id_a, chunk_id_a, "负利率", "负利率", hash("负利率")
+        )
 
-        doc_id_b = insert_document(self.conn, file_name_b, file_name_hash_b, hash("content b"))
-        chunk_id_b = insert_document_chunk(self.conn, doc_id_b, 1, "chunk b", hash("chunk b"))
-        insert_concept(self.conn, doc_id_b, chunk_id_b, "负利率", "负利率", hash("负利率"))
+        doc_id_b = insert_document(
+            self.conn, file_name_b, file_name_hash_b, hash("content b")
+        )
+        chunk_id_b = insert_document_chunk(
+            self.conn, doc_id_b, 1, "chunk b", hash("chunk b")
+        )
+        insert_concept(
+            self.conn, doc_id_b, chunk_id_b, "负利率", "负利率", hash("负利率")
+        )
 
         # 模拟删除文档 A 时的概念清理逻辑
         concepts_a = query_concepts_by_document_id(self.conn, doc_id_a)
@@ -244,9 +289,13 @@ class TestChromaCleanupLogic(unittest.TestCase):
         other_doc_concepts = _query_by_not_document_id_and_in_normalized_concepts(
             self.conn, doc_id_a, concepts_a_normalized
         )
-        other_doc_concepts_normalized = [c.normalized_concept for c in other_doc_concepts]
+        other_doc_concepts_normalized = [
+            c.normalized_concept for c in other_doc_concepts
+        ]
 
-        delete_concepts = set(concepts_a_normalized) - set(other_doc_concepts_normalized)
+        delete_concepts = set(concepts_a_normalized) - set(
+            other_doc_concepts_normalized
+        )
 
         # "负利率"不应该被删除，因为文档 B 也在用
         self.assertNotIn("负利率", delete_concepts)
@@ -260,9 +309,15 @@ class TestChromaCleanupLogic(unittest.TestCase):
         file_name_a = "test_unique_a.md"
         file_name_hash_a = hash(file_name_a)
 
-        doc_id_a = insert_document(self.conn, file_name_a, file_name_hash_a, hash("content a"))
-        chunk_id_a = insert_document_chunk(self.conn, doc_id_a, 1, "chunk a", hash("chunk a"))
-        insert_concept(self.conn, doc_id_a, chunk_id_a, "测试独有", "测试独有", hash("测试独有"))
+        doc_id_a = insert_document(
+            self.conn, file_name_a, file_name_hash_a, hash("content a")
+        )
+        chunk_id_a = insert_document_chunk(
+            self.conn, doc_id_a, 1, "chunk a", hash("chunk a")
+        )
+        insert_concept(
+            self.conn, doc_id_a, chunk_id_a, "测试独有", "测试独有", hash("测试独有")
+        )
 
         # 模拟删除文档 A 时的概念清理逻辑
         concepts_a = query_concepts_by_document_id(self.conn, doc_id_a)
@@ -271,9 +326,13 @@ class TestChromaCleanupLogic(unittest.TestCase):
         other_doc_concepts = _query_by_not_document_id_and_in_normalized_concepts(
             self.conn, doc_id_a, concepts_a_normalized
         )
-        other_doc_concepts_normalized = [c.normalized_concept for c in other_doc_concepts]
+        other_doc_concepts_normalized = [
+            c.normalized_concept for c in other_doc_concepts
+        ]
 
-        delete_concepts = set(concepts_a_normalized) - set(other_doc_concepts_normalized)
+        delete_concepts = set(concepts_a_normalized) - set(
+            other_doc_concepts_normalized
+        )
 
         # "测试独有"应该被删除，因为只有文档 A 在用
         self.assertIn("测试独有", delete_concepts)

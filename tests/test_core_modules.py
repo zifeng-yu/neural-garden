@@ -10,14 +10,15 @@ Neural Garden 单元测试套件 - 核心功能模块
 import os
 import sys
 import unittest
+
 import numpy as np
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.document.splitter import markdown_spilt
-from src.util.getHashValue import get_hash_value as hash
 from src.similarity import calculate_similarity
+from src.util.getHashValue import get_hash_value as hash
 
 
 class TestMarkdownSplitter(unittest.TestCase):
