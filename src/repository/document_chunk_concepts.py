@@ -18,7 +18,7 @@ class DocumentChunkConceptsDO(BaseDO):
 
 
 def insert_concept(
-    conn: sqlite3.Connection,
+    conn: sqlite3.Connection | None,
     document_id: int,
     document_chunk_id: int,
     concept: str,
@@ -126,6 +126,59 @@ def query_by_document_id(
         return result
 
 
+def query_by_not_document_id_and_in_normalized_concepts(
+    document_id: int, normalized_concepts: list[str]
+) -> list[DocumentChunkConceptsDO]:
+    if not normalized_concepts:
+        return []
+    placeholders = ",".join("?" for _ in normalized_concepts)
+    with get_sqlite_connection() as conn:
+
+        rows = conn.execute(
+            f"""
+                    select * from {TABLE_NAME} where document_id != ? and normalized_concept in({placeholders})
+                    """,
+            (
+                document_id,
+                *normalized_concepts,
+            ),
+        ).fetchall()
+        if not rows:
+            return []
+
+        result = []
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            result.append(DocumentChunkConceptsDO(**data))
+
+        return result
+
+
+def _query_by_document_id(
+    conn: sqlite3.Connection,
+    document_id: int,
+) -> list[DocumentChunkConceptsDO]:
+    rows = conn.execute(
+        f"""
+                select * from {TABLE_NAME} where document_id = ?
+                """,
+        (document_id,),
+    ).fetchall()
+    if not rows:
+        return []
+
+    result = []
+    for row in rows:
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        result.append(DocumentChunkConceptsDO(**data))
+
+    return result
+
+
 def query_by_chunk_id(
     chunk_id: int,
 ) -> list[DocumentChunkConceptsDO]:
@@ -155,7 +208,7 @@ def query_all() -> list[DocumentChunkConceptsDO]:
 
         rows = conn.execute(
             f"""
-                    select * from {TABLE_NAME} 
+                    select * from {TABLE_NAME}
                     """,
         ).fetchall()
         if not rows:
@@ -169,3 +222,36 @@ def query_all() -> list[DocumentChunkConceptsDO]:
             result.append(DocumentChunkConceptsDO(**data))
 
         return result
+
+
+def copy_documents_chunk_concepts(
+    conn: sqlite3.Connection,
+    need_document_id: int,
+    new_document_id: int,
+    old_new_chunk_id_map: dict[int, int],
+) -> list[int]:
+    chunk_concepts_list = _query_by_document_id(conn, need_document_id)
+    if not chunk_concepts_list:
+        return []
+    new_chunk_concepts_ids = []
+    for chunk_concepts in chunk_concepts_list:
+        new_id = insert_concept(
+            conn,
+            new_document_id,
+            old_new_chunk_id_map[chunk_concepts.document_chunk_id],
+            chunk_concepts.concept,
+            chunk_concepts.normalized_concept,
+            chunk_concepts.normalized_concept_hash,
+        )
+        new_chunk_concepts_ids.append(new_id)
+    return new_chunk_concepts_ids
+
+
+def delete_by_document_id(document_id: int):
+    with get_sqlite_connection() as conn:
+        conn.execute(
+            f"""
+                    delete from {TABLE_NAME} where document_id = ?
+                """,
+            (document_id,),
+        )

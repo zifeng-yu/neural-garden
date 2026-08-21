@@ -116,8 +116,8 @@ def create_table_init():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
             relation_id INTEGER NOT NULL,
-            doc_id INTEGER NOT NULL,
-            chunk_id INTEGER NOT NULL,
+            document_id INTEGER NOT NULL,
+            document_chunk_id INTEGER NOT NULL,
 
             evidence_role TEXT NOT NULL CHECK (
                 evidence_role IN ('source', 'target', 'both')
@@ -127,13 +127,13 @@ def create_table_init():
             updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
 
             FOREIGN KEY (relation_id) REFERENCES concept_relations(id),
-            FOREIGN KEY (doc_id) REFERENCES documents(id),
-            FOREIGN KEY (chunk_id) REFERENCES document_chunk(id),
+            FOREIGN KEY (document_id) REFERENCES documents(id),
+            FOREIGN KEY (document_chunk_id) REFERENCES document_chunks(id),
 
             UNIQUE (
                 relation_id,
-                doc_id,
-                chunk_id,
+                document_id,
+                document_chunk_id,
                 evidence_role
             )
         );

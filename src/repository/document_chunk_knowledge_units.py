@@ -20,7 +20,7 @@ class DocumentChunkKnowledgeUnits(BaseDO):
 
 
 def insert_knowledge_unit(
-    conn: sqlite3.Connection,
+    conn: sqlite3.Connection | None,
     document_id: int,
     document_chunk_id: int,
     title: str,
@@ -107,3 +107,78 @@ def query_by_ids(ids: list[int]) -> list[DocumentChunkKnowledgeUnits]:
             result.append(DocumentChunkKnowledgeUnits(**data))
 
         return result
+
+
+def query_by_document_id(document_id: int) -> list[DocumentChunkKnowledgeUnits]:
+    with get_sqlite_connection() as conn:
+        rows = conn.execute(
+            f"""
+                select * from {TABLE_NAME} where document_id = ?
+                """,
+            (document_id,),
+        ).fetchall()
+
+        result = []
+
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            result.append(DocumentChunkKnowledgeUnits(**data))
+
+        return result
+
+
+def _query_by_document_id(
+    conn: sqlite3.Connection, document_id: int
+) -> list[DocumentChunkKnowledgeUnits]:
+    rows = conn.execute(
+        f"""
+            select * from {TABLE_NAME} where document_id = ?
+            """,
+        (document_id,),
+    ).fetchall()
+
+    result = []
+
+    for row in rows:
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        result.append(DocumentChunkKnowledgeUnits(**data))
+
+    return result
+
+
+def copy_documents_chunk_knowledge_unit(
+    conn: sqlite3.Connection,
+    need_document_id: int,
+    new_document_id: int,
+    old_new_chunk_id_map: dict[int, int],
+) -> list[int]:
+    knowledge_unit_list = _query_by_document_id(conn, need_document_id)
+    if not knowledge_unit_list:
+        return []
+    new_knowledge_unit_ids = []
+    for knowledge_unit in knowledge_unit_list:
+        new_knowledge_unit_id = insert_knowledge_unit(
+            conn,
+            new_document_id,
+            old_new_chunk_id_map[knowledge_unit.document_chunk_id],
+            knowledge_unit.title,
+            knowledge_unit.summary,
+            knowledge_unit.keywords,
+            knowledge_unit.embedding_text,
+        )
+        new_knowledge_unit_ids.append(new_knowledge_unit_id)
+    return new_knowledge_unit_ids
+
+
+def delete_by_document_id(document_id: int):
+    with get_sqlite_connection() as conn:
+        conn.execute(
+            f"""
+                    delete from {TABLE_NAME} where document_id = ?
+                """,
+            (document_id,),
+        )

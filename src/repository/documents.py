@@ -19,7 +19,10 @@ class DocumentDO(BaseDO):
 
 
 def insert_document(
-    conn: sqlite3.Connection, file_name: str, file_name_hash: str, content_hash: str
+    conn: sqlite3.Connection | None,
+    file_name: str,
+    file_name_hash: str,
+    content_hash: str,
 ) -> int:
     if conn is not None:
         return _insert_document(conn, file_name, file_name_hash, content_hash)
@@ -52,7 +55,7 @@ def _insert_document(
     return cursor.lastrowid
 
 
-def query_by_file_name_hash(file_name_hash: str):
+def query_by_file_name_hash(file_name_hash: str) -> DocumentDO | None:
     with get_sqlite_connection() as conn:
 
         row = conn.execute(
@@ -71,7 +74,7 @@ def query_by_file_name_hash(file_name_hash: str):
         return DocumentDO(**data)
 
 
-def query_by_content_hash(content_hash: str):
+def query_by_content_hash(content_hash: str) -> DocumentDO | None:
     with get_sqlite_connection() as conn:
 
         row = conn.execute(
@@ -128,3 +131,27 @@ def query_all() -> list[DocumentDO]:
             result.append(DocumentDO(**data))
 
         return result
+
+
+def copy_documents(
+    conn: sqlite3.Connection,
+    need_copy_do: DocumentDO,
+    new_file_name: str,
+    new_file_name_hash: str,
+) -> int:
+    return insert_document(
+        conn,
+        new_file_name,
+        new_file_name_hash,
+        need_copy_do.content_hash,
+    )
+
+
+def delete_by_id(id: int):
+    with get_sqlite_connection() as conn:
+        conn.execute(
+            f"""
+                    delete from {TABLE_NAME} where id = ?
+                """,
+            (id,),
+        )

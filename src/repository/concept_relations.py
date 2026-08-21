@@ -63,7 +63,6 @@ def insert_concept_relation(
             ),
         )
         id = cursor.fetchone()[0]
-        conn.commit()
 
         return id
 
@@ -84,6 +83,17 @@ def query_all() -> list[ConceptRelations]:
             data = dict(row)
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            data["relation_type"] = RelationType(data["relation_type"])
             result.append(ConceptRelations(**data))
 
         return result
+
+
+def delete_by_id(id: int):
+    with get_sqlite_connection() as conn:
+        conn.execute(
+            f"""
+                    delete from {TABLE_NAME} where id = ?
+                """,
+            (id,),
+        )

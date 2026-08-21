@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
         from src.util.getHashValue import get_hash_value as hash
 
-        titles = [1, 2, 3, 4, 5]
+        titles = [1, 2, 4, 5, 6, 7]
         titles_concept_map = {}
         for title in titles:
             doc_hava_concepts = list(knowledge_graph.successors(title))

@@ -8,16 +8,16 @@ Insight 记录模块
 - Markdown 导出
 """
 
-from dataclasses import dataclass, asdict
+import hashlib
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import List, Optional
-import hashlib
 
 
 @dataclass
 class Insight:
     """Insight 数据结构"""
-    
+
     id: str  # 唯一标识（时间戳 + 哈希）
     title: str  # 一句话总结
     trigger_content: str  # 触发内容
@@ -26,11 +26,11 @@ class Insight:
     related_concepts: List[str]  # 关联概念
     action_items: List[str]  # 行动建议
     created_at: str  # 记录时间
-    
+
     def to_dict(self) -> dict:
         """转换为字典（用于存储）"""
         return asdict(self)
-    
+
     def to_markdown(self) -> str:
         """转换为 Markdown 格式"""
         md = f"## 💡 Insight: {self.title}\n\n"
@@ -50,7 +50,7 @@ class Insight:
 def generate_insight_id(content: str) -> str:
     """
     生成 Insight 唯一 ID
-    
+
     格式：时间戳_内容哈希前 8 位
     """
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -68,7 +68,7 @@ def create_insight(
 ) -> Insight:
     """
     创建 Insight 记录
-    
+
     Args:
         title: 一句话总结
         trigger_content: 触发内容
@@ -76,7 +76,7 @@ def create_insight(
         content: 洞察内容
         related_concepts: 关联概念列表
         action_items: 行动建议列表
-        
+
     Returns:
         Insight 对象
     """
@@ -84,7 +84,7 @@ def create_insight(
         related_concepts = []
     if action_items is None:
         action_items = []
-    
+
     return Insight(
         id=generate_insight_id(content),
         title=title,
@@ -107,5 +107,5 @@ if __name__ == "__main__":
         related_concepts=["负利率", "货币政策", "资产价格"],
         action_items=["重新审视自己的资产配置", "研究负利率环境下的投资策略"],
     )
-    
+
     print(insight.to_markdown())

@@ -1,6 +1,5 @@
 import logging
 import os
-from re import I
 
 import src.config.logging_config as logging_config
 from src.config.config import (
@@ -8,6 +7,7 @@ from src.config.config import (
 )
 from src.document.splitter import markdown_spilt
 from src.embedding.getEmbedding import get_embedding
+from src.get_sqlite_connection import get_sqlite_connection
 from src.knowledge.knowledgeUnit import extract_knowledge_unit
 from src.knowledgeGraph.concepts import (
     concept_clustering_in_document,
@@ -16,12 +16,37 @@ from src.knowledgeGraph.concepts import (
 )
 from src.knowledgeGraph.concepts_relation import extract_relations_from_text
 from src.repository.concept_relations import RelationType, insert_concept_relation
+from src.repository.concept_relations import (
+    delete_by_id as delete_by_id_concept_relations,
+)
 from src.repository.document_chunk_concepts import (
+    copy_documents_chunk_concepts,
     query_by_chunk_id,
-    query_by_document_id,
+)
+from src.repository.document_chunk_concepts import (
+    delete_by_document_id as delete_by_document_id_chunk_concepts,
+)
+from src.repository.document_chunk_concepts import (
+    query_by_document_id as query_by_document_id_chunk_concetps,
+)
+from src.repository.document_chunk_concepts import (
+    query_by_not_document_id_and_in_normalized_concepts as query_by_not_document_id_and_in_normalized_concepts_chunk_concepts,
+)
+from src.repository.document_chunk_knowledge_units import (
+    copy_documents_chunk_knowledge_unit,
+)
+from src.repository.document_chunk_knowledge_units import (
+    delete_by_document_id as delete_by_document_id_chunk_knowledge_units,
+)
+from src.repository.document_chunk_knowledge_units import (
+    query_by_document_id as query_by_document_id_chunk_knowledge_units,
 )
 from src.repository.document_chunk_knowledge_units import (
     query_by_ids as query_by_ids_knowunit,
+)
+from src.repository.document_chunks import copy_document_chunks
+from src.repository.document_chunks import (
+    delete_by_document_id as delete_by_document_id_chunks,
 )
 from src.repository.document_chunks import query_by_ids as query_by_id_chunks
 from src.repository.document_insert_domain import (
@@ -33,13 +58,34 @@ from src.repository.document_insert_domain import (
     save_documents_domain,
 )
 from src.repository.documents import (
+    copy_documents,
     query_by_content_hash,
     query_by_file_name_hash,
 )
+from src.repository.documents import delete_by_id as delete_by_id_documents
 from src.repository.documents import query_by_id as query_by_id_document
 from src.repository.init import sqlite_table_init
-from src.repository.realtion_evidence import EvidenceRoleEnum, insert_relation_evidence
+from src.repository.relation_evidence import (
+    EvidenceRoleEnum,
+    copy_relation_evidence,
+    insert_relation_evidence,
+)
+from src.repository.relation_evidence import (
+    delete_by_document_id as delete_by_document_id_relation_evidence,
+)
+from src.repository.relation_evidence import (
+    query_by_document_id as query_by_document_id_relation_evidence,
+)
+from src.repository.relation_evidence import (
+    query_by_relation_id as query_by_relation_id_relation_evidence,
+)
 from src.util.getHashValue import get_hash_value as hash
+from src.vector_store.delete_dao import (
+    delete_by_id_knowledge as delete_by_id_knowledge_chroma,
+)
+from src.vector_store.delete_dao import (
+    delete_by_normalized_concet_hash_concept as delete_by_normalized_concet_hash_concept_chroma,
+)
 from src.vector_store.query_dao import (
     log_concept_collection_size,
     log_knowledgeUnit_collection_size,
@@ -70,6 +116,113 @@ def load_document(file_path: str) -> str:
         return f.read()
 
 
+def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
+
+    file_result = query_by_file_name_hash(file_name_hash)
+
+    if file_result:
+        if file_result.content_hash == content_hash:
+            return "skip"
+        document_id = file_result.id
+        # 1. 删除 relation evidence，并清理已经没有 evidence 的 relation
+        relation_evidence_dos = query_by_document_id_relation_evidence(document_id)
+        relation_ids = {x.relation_id for x in relation_evidence_dos}
+        delete_by_document_id_relation_evidence(document_id)
+
+        for relation_id in relation_ids:
+            relation_evidence_dos_by_relation_id = (
+                query_by_relation_id_relation_evidence(relation_id)
+            )
+            if not relation_evidence_dos_by_relation_id:
+                delete_by_id_concept_relations(relation_id)
+
+        # 2. 删除 knowledge unit 的 Chroma 数据
+        know_unit_do_list = query_by_document_id_chunk_knowledge_units(document_id)
+        know_unit_do_ids = [str(x.id) for x in know_unit_do_list]
+        delete_by_id_knowledge_chroma(know_unit_do_ids)
+
+        # 3. 删除不再被其他 document 使用的 concept
+        documents_concepts_do_list = query_by_document_id_chunk_concetps(document_id)
+        documents_concepts_do_normalized_concetps_list = [
+            x.normalized_concept for x in documents_concepts_do_list
+        ]
+        other_document_concepts_do_list = (
+            query_by_not_document_id_and_in_normalized_concepts_chunk_concepts(
+                document_id, documents_concepts_do_normalized_concetps_list
+            )
+        )
+        other_document_concepts_do_normalized_concetps_list = [
+            x.normalized_concept for x in other_document_concepts_do_list
+        ]
+        delete_concepts = set(documents_concepts_do_normalized_concetps_list) - set(
+            other_document_concepts_do_normalized_concetps_list
+        )
+        documents_concepts_do_list_group_normalized_concept = {
+            d.normalized_concept: d.normalized_concept_hash
+            for d in documents_concepts_do_list
+        }
+        need_delete_normalized_concept_hash_list = [
+            documents_concepts_do_list_group_normalized_concept[need_delete]
+            for need_delete in delete_concepts
+        ]
+        delete_by_normalized_concet_hash_concept_chroma(
+            need_delete_normalized_concept_hash_list
+        )
+
+        # 4. 删除 SQLite 中 document 相关数据
+        delete_by_document_id_chunk_concepts(document_id)
+        delete_by_document_id_chunk_knowledge_units(document_id)
+        delete_by_document_id_chunks(document_id)
+        delete_by_id_documents(document_id)
+
+        return "need_del"
+
+    content_result = query_by_content_hash(content_hash)
+
+    if content_result:
+        try:
+            with get_sqlite_connection() as conn:
+                new_doucument_id = copy_documents(
+                    conn, content_result, source, file_name_hash
+                )
+                old_new_chunk_id_map = copy_document_chunks(
+                    conn, content_result.id, new_doucument_id
+                )
+                new_know_ids = copy_documents_chunk_knowledge_unit(
+                    conn, content_result.id, new_doucument_id, old_new_chunk_id_map
+                )
+                new_chunk_concepts_ids = copy_documents_chunk_concepts(
+                    conn, content_result.id, new_doucument_id, old_new_chunk_id_map
+                )
+                new_relation_evidence_ids = copy_relation_evidence(
+                    conn, content_result.id, new_doucument_id, old_new_chunk_id_map
+                )
+        except Exception:
+            logger.exception("copy 出现错误，事务回滚 ")
+            return "copy_failed"
+
+        new_know_do_list = query_by_ids_knowunit(new_know_ids)
+        if new_know_do_list:
+            for new_know_do in new_know_do_list:
+                save_knowlege(
+                    KnowledgeUnitDTO(
+                        str(new_know_do.id),
+                        get_embedding(new_know_do.embedding_text),
+                        new_know_do.embedding_text,
+                        KnowledgeUnitMetadata(
+                            source,
+                            new_know_do.document_id,
+                            new_know_do.document_chunk_id,
+                            new_know_do.title,
+                            new_know_do.keywords,
+                        ),
+                    )
+                )
+        return "need_copy"
+
+    return "need_new"
+
+
 def index_file(file_path: str):
     """
     将单个文件导入 Chroma 向量库
@@ -78,7 +231,7 @@ def index_file(file_path: str):
         file_path: Markdown 文件路径
         persist_dir: Chroma 持久化目录
     """
-    # 1. 读取文件
+    # 读取文件
     content = load_document(file_path)
     source = os.path.basename(file_path)
 
@@ -87,30 +240,7 @@ def index_file(file_path: str):
     # 2. 查询是否有记录
     file_name_hash = hash(source)
     content_hash = hash(content)
-    # 根据file_name_hash content_hash查询
-    file_result = query_by_file_name_hash(file_name_hash)
-    content_result = query_by_content_hash(content_hash)
-    action = None
-    if file_result:
-        # 文件名存在 内容也一样 代表处理过了 就跳过
-        if file_result.content_hash == content_hash:
-            return
-        # 内容不一样 需要del后new
-        else:
-            action = "need_del"
-    elif content_result:
-        # 文件名不存在 但 内容存在 ，直接copy
-        action = "need_copy"
-    else:
-        action = "need_new"
-
-    # 执行copy or del 逻辑
-    if action == "need_copy":
-        # todo copy
-        return
-    elif action == "need_del":
-        # todo del
-        return
+    action = process_file(content_hash, file_name_hash, source)
 
     if action != "need_del" and action != "need_new":
         return
@@ -187,7 +317,9 @@ def index_file(file_path: str):
     if "document_id" in save_db_result:
         documentDO = query_by_id_document(save_db_result["document_id"])
         if documentDO:
-            document_chunk_concepts_dolist = query_by_document_id(documentDO.id)
+            document_chunk_concepts_dolist = query_by_document_id_chunk_concetps(
+                documentDO.id
+            )
             for document_chunk_concepts_do in document_chunk_concepts_dolist:
                 save_concept(
                     ConceptDTO(
@@ -254,6 +386,8 @@ def index_directory(dir_path: str):
         index_file(file_path)
 
     logger.info(f"\n✅ 批量索引完成，共 {len(md_files)} 个文件")
+    log_concept_collection_size()
+    log_knowledgeUnit_collection_size()
 
 
 if __name__ == "__main__":

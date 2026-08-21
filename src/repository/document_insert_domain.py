@@ -49,8 +49,8 @@ class InsertDocumentDomain:
 
 
 def save_documents_domain(document_domain: InsertDocumentDomain):
-    with get_sqlite_connection() as conn:
-        try:
+    try:
+        with get_sqlite_connection() as conn:
             doc_id = insert_document(
                 conn,
                 document_domain.insert_doc.file_name,
@@ -86,13 +86,11 @@ def save_documents_domain(document_domain: InsertDocumentDomain):
                         concept_domain.normalized_concept,
                         concept_domain.normalized_concept_hash,
                     )
-            conn.commit()
             return {
                 "document_id": doc_id,
                 "knowledge_unit_ids": knowledge_unit_ids,
                 "chunk_ids": chunk_ids,
             }
-        except Exception:
-            logger.exception("save_documents_domain 出现错误，事务回滚 ")
-            conn.rollback()
-            raise
+    except Exception:
+        logger.exception("save_documents_domain 出现错误，事务回滚 ")
+        raise
