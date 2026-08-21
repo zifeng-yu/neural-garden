@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -89,11 +90,10 @@ def query_all() -> list[ConceptRelations]:
         return result
 
 
-def delete_by_id(id: int):
-    with get_sqlite_connection() as conn:
-        conn.execute(
-            f"""
-                    delete from {TABLE_NAME} where id = ?
-                """,
-            (id,),
-        )
+def delete_by_id(conn: sqlite3.Connection, id: int):
+    conn.execute(
+        f"""
+                delete from {TABLE_NAME} where id = ?
+            """,
+        (id,),
+    )

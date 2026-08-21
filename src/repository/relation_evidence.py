@@ -161,33 +161,42 @@ def copy_relation_evidence(
     return new_relation_evidence_ids
 
 
-def delete_by_document_id(document_id: int):
-    with get_sqlite_connection() as conn:
-        conn.execute(
-            f"""
-                    delete from {TABLE_NAME} where document_id = ?
-                """,
-            (document_id,),
-        )
-
-
-def query_by_relation_id(relation_id: int) -> list[RelationEvidence]:
-    with get_sqlite_connection() as conn:
-        rows = conn.execute(
-            f"""
-                select * from {TABLE_NAME} where relation_id = ?
+def delete_by_document_id(conn: sqlite3.Connection, document_id: int):
+    conn.execute(
+        f"""
+                delete from {TABLE_NAME} where document_id = ?
             """,
-            (relation_id,),
-        ).fetchall()
-        if not rows:
-            return []
+        (document_id,),
+    )
 
-        result = []
-        for row in rows:
-            data = dict(row)
-            data["created_at"] = datetime.fromisoformat(data["created_at"])
-            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
-            data["evidence_role"] = EvidenceRoleEnum(data["evidence_role"])
-            result.append(RelationEvidence(**data))
 
-        return result
+def query_by_relation_id(
+    conn: sqlite3.Connection, relation_id: int
+) -> list[RelationEvidence]:
+    if conn is not None:
+        return _query_by_relation_id(conn, relation_id)
+    with get_sqlite_connection() as new_conn:
+        return _query_by_relation_id(new_conn, relation_id)
+
+
+def _query_by_relation_id(
+    conn: sqlite3.Connection, relation_id: int
+) -> list[RelationEvidence]:
+    rows = conn.execute(
+        f"""
+            select * from {TABLE_NAME} where relation_id = ?
+        """,
+        (relation_id,),
+    ).fetchall()
+    if not rows:
+        return []
+
+    result = []
+    for row in rows:
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        data["evidence_role"] = EvidenceRoleEnum(data["evidence_role"])
+        result.append(RelationEvidence(**data))
+
+    return result

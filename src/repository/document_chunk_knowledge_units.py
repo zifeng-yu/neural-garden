@@ -174,11 +174,10 @@ def copy_documents_chunk_knowledge_unit(
     return new_knowledge_unit_ids
 
 
-def delete_by_document_id(document_id: int):
-    with get_sqlite_connection() as conn:
-        conn.execute(
-            f"""
-                    delete from {TABLE_NAME} where document_id = ?
-                """,
-            (document_id,),
-        )
+def delete_by_document_id(conn: sqlite3.Connection, document_id: int):
+    conn.execute(
+        f"""
+                delete from {TABLE_NAME} where document_id = ?
+            """,
+        (document_id,),
+    )

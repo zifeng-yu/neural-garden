@@ -141,11 +141,10 @@ def copy_document_chunks(
     return chunk_id_map
 
 
-def delete_by_document_id(document_id: int):
-    with get_sqlite_connection() as conn:
-        conn.execute(
-            f"""
-                    delete from {TABLE_NAME} where document_id = ?
-                """,
-            (document_id,),
-        )
+def delete_by_document_id(conn: sqlite3.Connection, document_id: int):
+    conn.execute(
+        f"""
+                delete from {TABLE_NAME} where document_id = ?
+            """,
+        (document_id,),
+    )

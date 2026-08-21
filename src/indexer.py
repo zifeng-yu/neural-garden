@@ -127,21 +127,10 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
         # 1. 删除 relation evidence，并清理已经没有 evidence 的 relation
         relation_evidence_dos = query_by_document_id_relation_evidence(document_id)
         relation_ids = {x.relation_id for x in relation_evidence_dos}
-        delete_by_document_id_relation_evidence(document_id)
-
-        for relation_id in relation_ids:
-            relation_evidence_dos_by_relation_id = (
-                query_by_relation_id_relation_evidence(relation_id)
-            )
-            if not relation_evidence_dos_by_relation_id:
-                delete_by_id_concept_relations(relation_id)
-
-        # 2. 删除 knowledge unit 的 Chroma 数据
+        #  删除 knowledge unit 的 Chroma 数据 提前数据准备
         know_unit_do_list = query_by_document_id_chunk_knowledge_units(document_id)
         know_unit_do_ids = [str(x.id) for x in know_unit_do_list]
-        delete_by_id_knowledge_chroma(know_unit_do_ids)
-
-        # 3. 删除不再被其他 document 使用的 concept
+        # 3. 删除不再被其他 document 使用的 concept 的 Chroma数据 提前数据准备
         documents_concepts_do_list = query_by_document_id_chunk_concetps(document_id)
         documents_concepts_do_normalized_concetps_list = [
             x.normalized_concept for x in documents_concepts_do_list
@@ -165,16 +154,28 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
             documents_concepts_do_list_group_normalized_concept[need_delete]
             for need_delete in delete_concepts
         ]
+        try:
+            with get_sqlite_connection() as conn:
+                delete_by_document_id_relation_evidence(conn, document_id)
+                for relation_id in relation_ids:
+                    relation_evidence_dos_by_relation_id = (
+                        query_by_relation_id_relation_evidence(conn, relation_id)
+                    )
+                    if not relation_evidence_dos_by_relation_id:
+                        delete_by_id_concept_relations(conn, relation_id)
+                delete_by_document_id_chunk_concepts(conn, document_id)
+                delete_by_document_id_chunk_knowledge_units(conn, document_id)
+                delete_by_document_id_chunks(conn, document_id)
+                delete_by_id_documents(conn, document_id)
+        except Exception:
+            logger.exception("del 出现错误，事务回滚 ")
+            return "del_failed"
+
+        delete_by_id_knowledge_chroma(know_unit_do_ids)
+
         delete_by_normalized_concet_hash_concept_chroma(
             need_delete_normalized_concept_hash_list
         )
-
-        # 4. 删除 SQLite 中 document 相关数据
-        delete_by_document_id_chunk_concepts(document_id)
-        delete_by_document_id_chunk_knowledge_units(document_id)
-        delete_by_document_id_chunks(document_id)
-        delete_by_id_documents(document_id)
-
         return "need_del"
 
     content_result = query_by_content_hash(content_hash)
