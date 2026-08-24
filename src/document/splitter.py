@@ -16,7 +16,7 @@ def markdown_spilt(markdown: str) -> list[str]:
     sections = markdown_splitter.split_text(markdown)
 
     # 第二步：对每个 section 做递归分割
-    recursive_splitter = RecursiveCharacterTextSplitter(
+    recursive_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
         chunk_size=500,
         chunk_overlap=100,
     )
