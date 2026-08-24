@@ -4,6 +4,8 @@
 
 **Neural Garden** 是一个帮助你构建个人知识系统的工具。它基于 RAG（检索增强生成）和向量检索技术，让你的知识不再是孤立的笔记，而是可以相互连接、智能检索的认知网络。
 
+---
+
 ## 快速开始
 
 ### 1. 安装依赖
@@ -53,8 +55,8 @@ python -m src.search "什么是 Neural Garden"
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Markdown   │ ──> │  知识单元   │ ──> │  Embedding  │ ──> │  ChromaDB   │
-│   文档      │     │   提取      │     │   向量化    │     │   入库      │
+│  Markdown   │ ──> │   Chunk     │ ──> │  Embedding  │ ──> │  ChromaDB   │
+│   文档      │     │  分块       │     │   向量化    │     │   入库      │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
@@ -67,65 +69,86 @@ with open(file_path, "r", encoding="utf-8") as f:
     content = f.read()
 ```
 
-#### Step 2: 知识单元提取
+#### Step 2: Token 级分块
+```python
+# src/document/splitter.py: markdown_spilt()
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
+
+# 按 Markdown 标题分割
+markdown_splitter = MarkdownHeaderTextSplitter(
+    headers_to_split_on=[("#", "h1"), ("##", "h2"), ("###", "h3")],
+    strip_headers=False,
+)
+sections = markdown_splitter.split_text(markdown)
+
+# 按 Token 递归分割（保证语义完整性）
+recursive_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+    chunk_size=500,      # 每块 500 tokens
+    chunk_overlap=100,   # 重叠 100 tokens
+)
+chunks = recursive_splitter.split_documents(sections)
+```
+
+**分块策略**：
+- 先按 Markdown 标题分割（保持章节结构）
+- 再按 Token 递归分割（避免切断语义）
+- `chunk_size=500`：平衡检索精度和上下文长度
+- `chunk_overlap=100`：保证跨块语义连贯
+
+#### Step 3: 知识单元提取
 ```python
 # src/indexer.py: index_file()
 from src.knowledge.knowledgeUnit import extract_knowledge_unit
 
 knowledgeUnit = extract_knowledge_unit(
-    content=content,
+    content=chunk,
     source=filename,
-    uuid=hash(filename)  # 基于文件名生成稳定 ID
 )
+# 返回：KnowledgeUnit(title, summary, keywords)
 ```
 
 **知识单元结构**：
-- `unit_id`: 唯一标识（文件名哈希）
-- `title`: 文档标题
-- `keywords`: 关键词列表（3-5 个）
+- `title`: 小节标题
 - `summary`: 摘要（200-300 字）
-- `content_hash`: 内容哈希（用于增量更新检测）
+- `keywords`: 关键词列表（3-5 个）
 
-#### Step 3: 向量化
+#### Step 4: 向量化
 ```python
 # src/indexer.py: index_file()
 from src.embedding.getEmbedding import get_embedding
 
 embedding = get_embedding(knowledgeUnit.to_embedding_text())
-# 返回 768 维向量
+# 返回：list[float] (768 维)
 ```
 
 **Embedding 文本**：`标题 + 摘要 + 关键词` 的组合文本，优化检索效果。
 
-#### Step 4: 入库（增量更新）
+#### Step 5: 入库（增量更新）
 ```python
 # src/indexer.py: index_file()
-# 检查是否已存在
-existing = collection.get(ids=[uuid], include=["metadatas"])
-if existing["ids"] and existing["metadatas"][0].get("content_hash") == content_hash:
-    # 内容未变化，跳过
-    return
+from src.vector_store.save_dao import save_knowlege, KnowledgeUnitDTO
 
-# 新增或更新
-collection.upsert(
-    ids=[knowledgeUnit.unit_id],
-    embeddings=[embedding],
-    documents=[knowledgeUnit.to_embedding_text()],
-    metadatas=[{
-        "source": source,
-        "title": knowledgeUnit.title,
-        "keywords": json.dumps(knowledgeUnit.keywords),
-        "full_content": content,
-        "content_hash": content_hash,
-    }]
-)
+save_knowlege(KnowledgeUnitDTO(
+    id=chunk_id,
+    embedding=embedding,
+    text=knowledgeUnit.to_embedding_text(),
+    metadata=KnowledgeUnitMetadata(
+        file_name=filename,
+        document_id=doc_id,
+        document_chunk_id=chunk_id,
+        title=knowledgeUnit.title,
+        keywords=knowledgeUnit.keywords
+    )
+))
 ```
 
 **增量更新逻辑**：
-1. 用文件名哈希作为 ID 查询
-2. 比较 `content_hash` 判断内容是否变化
-3. 未变化 → 跳过（节省 API 成本）
-4. 已变化 → `upsert` 更新（覆盖旧向量）
+1. 基于文件名 + 内容哈希判断文件是否变化
+2. 未变化 → 跳过（节省 API 成本）
+3. 已变化 → `upsert` 更新（覆盖旧向量）
 
 ---
 
@@ -133,17 +156,17 @@ collection.upsert(
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  文档列表   │ ──> │  概念提取   │ ──> │  概念归一化 │ ──> │  关系抽取   │ ──> │  NetworkX   │
+│  Chunk      │ ──> │  概念提取   │ ──> │  概念归一化 │ ──> │  关系抽取   │ ──> │  NetworkX   │
 │             │     │  (LLM)      │     │  (相似度)   │     │  (LLM)      │     │   概念图    │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
 **详细步骤**：
 
-#### Step 1: 文档 → 概念
+#### Step 1: Chunk → 概念
 ```python
-# src/knowledgeGraph/knowledge_graph.py: get_documents_to_concepts()
-from src.knowledgeGraph.graph_extractor import extract_concepts_from_text
+# src/knowledgeGraph/concepts.py: documents_to_concepts()
+from src.knowledgeGraph.concepts_extractor import extract_concepts_from_text
 
 concepts = extract_concepts_from_text(f"<文本标题>{title}</文本标题>\n<文本内容>{content}</文本内容>")
 # 返回：["概念 1", "概念 2", ...] 最多 10 个
@@ -153,43 +176,36 @@ concepts = extract_concepts_from_text(f"<文本标题>{title}</文本标题>\n<�
 - 只提取名词/名词短语
 - 优先：技术术语、理论、政策、机构、产品、事件
 - 删除：普通描述词、时间地点、泛化词语
-- 同义概念只保留一个标准名称
 
 #### Step 2: 概念归一化
 ```python
-# src/knowledgeGraph/knowledge_graph.py: resolve_concept()
-from src.vector_store.query_dao import search_by_threshold_concept
+# src/knowledgeGraph/concepts.py: normalized_concept()
+# 内部归一（文档内）
+concept_pairs = find_similar_concept_pairs(concepts, threshold=0.2)
+connected_components = build_graph_and_find_components(concept_pairs)
+normalized = llm_merge_clusters(connected_components)
 
-# 查询相似概念（余弦相似度阈值）
-similar_concepts = search_by_threshold_concept(query=concept)
-
-# 用 LLM 判断最相似的概念
-from src.knowledgeGraph.graph_extractor import extract_max_similarity_concept
-normalized = extract_max_similarity_concept(concept, [x.conceptName for x in similar_concepts])
-# 返回："标准化概念名"
+# 外部归一（跨文档）
+similar_concepts = chroma_search(query=concept, threshold=0.2, top_k=1)
+if similar_concepts:
+    normalized = llm_judge_same_entity(concept, similar_concepts[0])
 ```
 
 **归一化目的**：避免同义词重复（如"AI"和"人工智能"合并为一个节点）。
 
 #### Step 3: 概念入库
 ```python
-# src/knowledgeGraph/knowledge_graph.py: build_concept_graph()
-from src.vector_store.save_dao import save_concept, ConceptDO, ConceptMetadata
-
-conceptDO = ConceptDO(
-    id=hash(concept_name),
-    embedding=get_embedding(concept_name),
-    conceptName=concept_name,
-    metadata=ConceptMetadata(source=[doc_title])
-)
-save_concept(conceptDO)
+# src/vector_store/save_dao.py: save_concept()
+save_concept(ConceptDTO(
+    id=hash(normalized_concept),
+    embedding=get_embedding(normalized_concept),
+    normalized_concept=normalized_concept
+))
 ```
 
 #### Step 4: 关系抽取
 ```python
-# src/knowledgeGraph/knowledge_graph.py: build_concept_graph()
-from src.knowledgeGraph.graph_extractor import extract_relations_from_text
-
+# src/knowledgeGraph/concepts_relation.py: extract_relations_from_text()
 relations = extract_relations_from_text(text, concepts)
 # 返回：[["源概念", "关系类型", "目标概念"], ...]
 ```
@@ -204,10 +220,10 @@ relations = extract_relations_from_text(text, concepts)
 
 #### Step 5: 构建图
 ```python
-# src/knowledgeGraph/knowledge_graph.py: build_concept_graph()
+# src/graph.py: build_graph()
 import networkx as nx
 
-G = nx.DiGraph()
+G = nx.MultiDiGraph()  # 支持多边（同一对概念可能有多种关系）
 
 # 添加文档节点
 G.add_node(doc_id, type="document", title=doc_title)
@@ -235,25 +251,26 @@ visualize_graph(G, "graphPNG/", "概念图")
 
 ## 课程进度
 
-### 主课程（按周推送）
+### 主课程（7 课，已完成 6 课）
 
 | 课次 | 主题 | 状态 | 核心功能 | 推送日期 |
 |------|------|------|---------|----------|
 | Lesson 01 | 5 分钟跑起来 | ✅ 完成 | 项目骨架 + Hello World 搜索 | 2026-07-19 |
-| Lesson 02 | 知识单元提取 | ✅ 完成 | LLM 提取 + 向量化 + 增量更新 | 2026-07-26 |
-| Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 + --resetDB 参数 | 2026-07-26 |
+| Lesson 02 | 知识单元提取 | ✅ 完成 | LLM 提取 + 向量化 | 2026-07-26 |
+| Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 | 2026-07-26 |
 | Lesson 03 | 向量搜索入门 | ✅ 完成 | Chroma 搜索 + 相似度计算 | 2026-08-03 |
-| Lesson 04 | 概念图构建 | ✅ 完成 | NetworkX + 概念归一化 + 重试机制 | 2026-08-05 (提前) |
-| Lesson 05 | Insight 记录 | ✅ 完成 | `insight.py` + Markdown 导出 | 2026-08-11 (补) |
+| Lesson 04 | 概念图构建 | ✅ 完成 | NetworkX + 概念归一化 | 2026-08-05 (提前) |
+| Lesson 05 | Insight 记录 | ✅ 完成 | `insight.py` + SQLite + ChromaDB | 2026-08-11 (补) |
 | Lesson 06 | 反馈闭环 | ✅ 完成 | `feedback.py` + 数据迭代 | 2026-08-23 |
-| Lesson 07 | 自动化部署 | ⏳ 待推送 | Cron + MCP 封装 + 验收 | 2026-09-07 |
+| Lesson 07 | 自动化部署 | ⏳ 待推送 | Cron + MCP 封装 + 验收 | 待定 |
 
-### 补充课程（额外材料，不通过 cron 推送）
+### 补充课程（额外材料）
 
 | 课次 | 主题 | 状态 | 说明 |
 |------|------|------|------|
-| Extra 01 | SQLite 基础与实战 | ✅ 完成 | 生产表（8 张）vs 教程简化表（3 张）说明 |
-| Extra 02 | 反馈闭环与数据完整性 | ✅ 完成 | del/copy/relation 逻辑实现指南 |
+| Extra 01 | SQLite 基础与实战 | ✅ 完成 | 生产表（8 张）vs 教程简化表 |
+| Extra 02 | 反馈闭环与数据完整性 | ✅ 完成 | del/copy 逻辑实现指南 |
+| Extra 03 | Embedding、向量、图深度解析 | ✅ 完成 | 专业共识 vs 代码现状对照 |
 
 ---
 
@@ -269,11 +286,10 @@ neural-garden/
 ├── src/
 │   ├── __init__.py
 │   ├── indexer.py              # 知识索引器（增量更新）
-│   ├── search.py               # 向量搜索入口
+│   ├── search.py               # 向量搜索入口（支持 knowledge + insight 联合搜索）
 │   ├── graph.py                # 知识图谱构建
-│   ├── insight.py              # Insight 记录模块（Markdown 导出）
-│   ├── feedback.py             # 反馈闭环模块（搜索日志/数据迭代）
-│   ├── storage.py              # SQLite 存储模块（简化表：3 张）
+│   ├── insight.py              # Insight 记录模块（CLI 入口）
+│   ├── feedback.py             # 反馈闭环模块（骨架）
 │   ├── similarity.py           # 相似度计算工具
 │   ├── get_chroma_collection.py # Chroma 集合获取工具
 │   ├── get_sqlite_connection.py # SQLite 连接工具
@@ -281,44 +297,53 @@ neural-garden/
 │   │   ├── config.py           # 配置加载
 │   │   └── logging_config.py   # 日志配置
 │   ├── document/
-│   │   └── markdown_split.py   # Markdown 分块工具
+│   │   └── splitter.py         # Markdown 分块工具（按 title + token）
 │   ├── embedding/
 │   │   └── getEmbedding.py     # Embedding API 调用
 │   ├── knowledge/
 │   │   ├── knowledgeUnit.py    # 知识单元提取
-│   │   └── concepts.py         # 概念提取与归一化
+│   │   └── knowledge_extractor.py
 │   ├── knowledgeGraph/
-│   │   ├── knowledge_graph.py  # 图构建主逻辑
-│   │   └── graph_extractor.py  # 概念/关系抽取（LLM）
-│   ├── repository/             # 生产表 DAO 层（8 张表）
+│   │   ├── concepts.py         # 概念提取与归一化
+│   │   ├── concepts_extractor.py
+│   │   ├── concepts_relation.py # 关系抽取
+│   │   └── knowledge_graph.py  # 图构建主逻辑
+│   ├── repository/             # SQLite DAO 层（8 张表）
 │   │   ├── create_table.py     # 表初始化
 │   │   ├── documents.py        # 文档 CRUD
 │   │   ├── document_chunks.py  # 分块 CRUD（含级联删除）
 │   │   ├── document_chunk_knowledge_units.py
 │   │   ├── document_chunk_concepts.py
-│   │   └── concept_relations.py
+│   │   ├── concept_relations.py
+│   │   ├── relation_evidence.py
+│   │   └── insights.py         # Insight CRUD（新增）
 │   ├── vector_store/
-│   │   ├── save_dao.py         # 向量存储保存
+│   │   ├── save_dao.py         # 向量存储保存（knowledge/concept/insight）
 │   │   ├── query_dao.py        # 向量存储查询
+│   │   ├── delete_dao.py       # 向量存储删除
 │   │   └── reset.py            # 清空向量库
 │   └── util/
 │       ├── callDashscopellm.py # LLM 调用封装
 │       ├── getHashValue.py     # 哈希工具
 │       ├── graphStats.py       # 图统计信息
 │       ├── visualizeGraph.py   # 图可视化
-│       └── retryUtil.py        # 重试机制
+│       └── llmException.py     # LLM 异常处理
 ├── data/
 │   ├── pilot/                  # 原始知识笔记（Markdown）
 │   └── chroma/                 # ChromaDB 向量存储（自动生成）
-└── tests/
-    ├── test_concept_normalization.py  # 概念归一化测试
-    └── test_retry.py                  # 重试机制测试
+├── tests/
+│   ├── test_core_modules.py    # 核心模块测试（splitter/hash/similarity）
+│   ├── test_repository.py      # repository 层测试（12 个测试）
+│   ├── test_insights.py        # Insight 模块测试（6 个测试）
+│   └── test_vector_store.py    # ChromaDB 测试（8 个测试）
+└── tutorials/                  # 教程文档（不提交到仓库）
 ```
 
 **架构说明**：
-- **简化表**（`src/storage.py`）：3 张表（concepts/insights/search_logs），用于教程学习
-- **生产表**（`src/repository/*`）：8 张表（documents/document_chunks/...），用于生产环境
-- **双层存储**：SQLite（元数据/关系）+ ChromaDB（Embedding/相似度检索）
+- **SQLite**（8 张生产表）：documents/document_chunks/document_chunk_knowledge_units/document_chunk_concepts/concept_relations/relation_evidence/insights
+- **ChromaDB**（3 个 collection）：knowledge/concept/insight
+- **NetworkX**（内存图）：MultiDiGraph（支持多边）
+- **双层存储**：SQLite（元数据/关系/溯源）+ ChromaDB（Embedding/相似度检索）
 
 ---
 
@@ -336,9 +361,13 @@ chroma:
   persist_directory: "data/chroma"
   knowledge_table_name: "knowledge"
   concept_table_name: "concept"
+  insight_table_name: "insight"    # 新增
 
 pilot_dataset:
   path: "data/pilot"
+
+sqlite:
+  sqlite_directory: "data/sqlite/neural.db"
 ```
 
 ### .env
@@ -364,10 +393,10 @@ vector = get_embedding("你的文本")
 
 ```python
 # 单文件索引
-index_file(file_path, persist_dir)
+index_file(file_path)
 
 # 批量索引
-index_directory(dir_path, persist_dir)
+index_directory(dir_path)
 
 # 命令行
 python -m src.indexer           # 增量更新
@@ -380,13 +409,15 @@ python -m src.indexer --resetDB # 清空后重新索引
 python -m src.search "<查询内容>" [top_k]
 ```
 
+**联合搜索**：同时搜索 knowledge collection 和 insight collection，返回综合结果。
+
 ### src/graph.py
 
 ```python
 # 构建概念图
 from src.graph import build_graph, graph_png, log_stats
 
-G = build_graph(pilot_dir)
+G = build_graph()
 graph_png(G)  # 输出 PNG
 log_stats(G)  # 打印统计信息
 ```
@@ -394,19 +425,16 @@ log_stats(G)  # 打印统计信息
 ### src/insight.py
 
 ```python
-from src.insight import create_insight
-
-insight = create_insight(
-    title="一句话总结",
-    trigger_content="触发内容",
-    source="来源",
-    content="洞察内容",
-    related_concepts=["概念 1", "概念 2"],
-    action_items=["行动 1", "行动 2"]
-)
-
-print(insight.to_markdown())
+# CLI 方式创建 Insight
+python src/insight.py \
+  --title "一句话总结" \
+  --content "洞察内容" \
+  --action-items '["行动 1", "行动 2"]' \
+  --relation-concepts '["概念 1", "概念 2"]' \
+  --source-title "来源文档标题"
 ```
+
+**relation_concepts 优先级**：用户输入 > chunk 概念 > document 概念 > LLM 自动提取
 
 ---
 
@@ -414,19 +442,15 @@ print(insight.to_markdown())
 
 | 组件 | 技术 |
 |------|------|
-| **关系存储** | SQLite（8 张生产表：documents/document_chunks/...） |
-| **向量存储** | ChromaDB（SQLite + HNSW 索引，2 个 collection） |
-| **图存储** | NetworkX（内存 DiGraph） |
+| **关系存储** | SQLite（8 张生产表：documents/document_chunks/.../insights） |
+| **向量存储** | ChromaDB（SQLite + HNSW 索引，3 个 collection：knowledge/concept/insight） |
+| **图存储** | NetworkX（内存 MultiDiGraph） |
 | **Embedding** | DashScope text-embedding-v1（768 维） |
-| **LLM** | DashScope qwen3.5-plus（知识提取、关系抽取） |
+| **LLM** | DashScope qwen3.5-plus（知识提取、概念提取、关系抽取） |
+| **分块工具** | LangChain + tiktoken（按 title + token 递归分割） |
 | **配置管理** | PyYAML + python-dotenv |
 | **日志系统** | Python logging（滚动文件 + 分级控制） |
 | **语言** | Python 3.9+ |
-
-**架构说明**：
-- **教程简化表**（`src/storage.py`）：3 张表（concepts/insights/search_logs），用于学习 SQLite 基础
-- **生产表**（`src/repository/*`）：8 张表，支持增量更新（del/copy/new）和概念关系追溯
-- **双层架构**：SQLite（元数据/关系/溯源）+ ChromaDB（Embedding/相似度检索）
 
 ---
 
@@ -435,18 +459,18 @@ print(insight.to_markdown())
 ### V1：纯向量检索（Lesson 01-03）
 
 ```
-Markdown → KnowledgeUnit → Embedding → ChromaDB → Search
+Markdown → Chunk → KnowledgeUnit → Embedding → ChromaDB → Search
 ```
 
 ### V2：概念图增强（Lesson 04-05）
 
 ```
-Markdown → KnowledgeUnit + Concept → ChromaDB + NetworkX → Graph
-                                           ↓
-                                      Insight (Markdown)
+Markdown → Chunk → KnowledgeUnit + Concept → ChromaDB + NetworkX → Graph
+                                                    ↓
+                                             Insight (SQLite + ChromaDB)
 ```
 
-### V3：SQLite + ChromaDB 双层架构（Lesson 06-07 + 补充课程）
+### V3：SQLite + ChromaDB 双层架构（Lesson 06-07 + Insight）
 
 ```
                     ┌──────────────┐
@@ -456,7 +480,7 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
                            ↓
                     ┌──────────────┐
                     │  ChromaDB    │ → Embedding/相似度检索
-                    │  (2 个 Collection) │
+                    │  (3 个 Collection) │
                     └──────────────┘
 ```
 
@@ -474,6 +498,7 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 - **基于文件名的稳定 ID**：同一文件修改时 ID 不变，支持更新而非新增
 - **内容哈希检测**：通过 `content_hash` 判断内容是否变化，未变化则跳过
 - **节省成本**：避免重复调用 LLM 和 Embedding API
+- **三种状态**：skip（未变化）/ del（删除）/ copy（复制）/ new（新增）
 
 ### 生产级设计
 
@@ -481,9 +506,9 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 - **防幻觉 Prompt**：明确要求"不得根据常识补充文档没有的信息"
 - **日志系统**：生产级日志配置（控制台 + 滚动文件 + 错误日志）
 - **命令行参数**：支持 `--resetDB` 按需清空向量库
-- **重试机制**：API 调用失败自动重试（`src/util/retryUtil.py`）
-- **增量更新**：基于 content_hash 检测文件变化，支持 del/copy/new 三种状态
+- **重试机制**：API 调用失败自动重试
 - **数据完整性**：文档更新时自动清理旧数据，相同内容直接复制 ID（避免重复处理）
+- **Insight 生命周期**：文档删除时，关联的 Insight 标记为 offline（不删除）
 
 ### 知识图谱
 
@@ -492,21 +517,27 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 - **可视化**：自动生成概念图 PNG
 - **统计信息**：节点数、边数、连通分量等
 
+### 测试覆盖
+
+- **41 个单元测试**：repository 层（12 个）+ insights 模块（6 个）+ vector_store（8 个）+ core modules（16 个）
+- **内存数据库测试**：使用 SQLite :memory: 和临时 ChromaDB 目录
+- **CI 就绪**：`pytest tests/ -v` 一键运行
+
 ---
 
 ## 教程
 
 本项目教程按周推送，每周一课：
 
-| 课次 | 主题 | 推送日期 |
-|------|------|---------|
-| Lesson 01 | 5 分钟跑起来 | 2026-07-19 |
-| Lesson 02 | 知识单元提取 | 2026-07-26 |
-| Lesson 03 | 向量搜索入门 | 2026-08-03 |
-| Lesson 04 | 概念图构建 | 2026-08-09 |
-| Lesson 05 | Insight 记录 | 2026-08-09 |
-| Lesson 06 | 反馈闭环 | 2026-08-16 |
-| Lesson 07 | 自动化部署 | 2026-08-23 |
+| 课次 | 主题 | 推送日期 | 状态 |
+|------|------|---------|------|
+| Lesson 01 | 5 分钟跑起来 | 2026-07-19 | ✅ 完成 |
+| Lesson 02 | 知识单元提取 | 2026-07-26 | ✅ 完成 |
+| Lesson 03 | 向量搜索入门 | 2026-08-03 | ✅ 完成 |
+| Lesson 04 | 概念图构建 | 2026-08-05 | ✅ 完成 |
+| Lesson 05 | Insight 记录 | 2026-08-11 | ✅ 完成 |
+| Lesson 06 | 反馈闭环 | 2026-08-23 | ✅ 完成 |
+| Lesson 07 | 自动化部署 | 待定 | ⏳ 待推送 |
 
 ---
 
@@ -538,6 +569,13 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 1. 新概念提取后，在概念库中检索相似概念（余弦相似度阈值）
 2. 如果有相似概念，用 LLM 判断是否指向同一实体
 3. 如果是 → 使用已有概念名；否 → 创建新概念
+
+### Q: Insight 如何工作？
+
+1. 用户创建 Insight（CLI 或 API）
+2. 存入 SQLite（结构化数据）+ ChromaDB（向量检索）
+3. 搜索时联合查询 knowledge 和 insight 两个 collection
+4. 文档删除时，关联的 Insight 标记为 offline（不删除，保留用户数据）
 
 ---
 
