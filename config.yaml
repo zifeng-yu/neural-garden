@@ -9,6 +9,7 @@ chroma:
   persist_directory: "data/chroma"
   knowledge_table_name: "knowledge"
   concept_table_name: "concept"
+  insight_table_name: "insight"
 
 pilot_dataset:
   path: "data/pilot"

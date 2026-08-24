@@ -65,6 +65,7 @@ from src.repository.documents import (
 from src.repository.documents import delete_by_id as delete_by_id_documents
 from src.repository.documents import query_by_id as query_by_id_document
 from src.repository.init import sqlite_table_init
+from src.repository.insights import mark_source_status_offline_by_document_id
 from src.repository.relation_evidence import (
     EvidenceRoleEnum,
     copy_relation_evidence,
@@ -90,7 +91,7 @@ from src.vector_store.query_dao import (
     log_concept_collection_size,
     log_knowledgeUnit_collection_size,
 )
-from src.vector_store.reset import resetDB_CONCEPT, resetDB_KNOWLEDGE
+from src.vector_store.reset import resetDB_CONCEPT, resetDB_INSIGHT, resetDB_KNOWLEDGE
 from src.vector_store.save_dao import (
     ConceptDTO,
     KnowledgeUnitDTO,
@@ -176,6 +177,7 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
         delete_by_normalized_concet_hash_concept_chroma(
             need_delete_normalized_concept_hash_list
         )
+        mark_source_status_offline_by_document_id(document_id)
         return "need_del"
 
     content_result = query_by_content_hash(content_hash)
@@ -392,12 +394,15 @@ def index_directory(dir_path: str):
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    args = sys.argv[1:]
-    if "--resetDB" in args:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resetAllDB", action="store_true")
+    args = parser.parse_args()
+    if args.resetAllDB:
         resetDB_KNOWLEDGE()
         resetDB_CONCEPT()
+        resetDB_INSIGHT()
         sqlite_table_init()
 
     # 配置路径

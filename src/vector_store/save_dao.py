@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
+    CHROMA_INSIGHT_TABLE_NAME,
     CHROMA_KNOWLEDGE_TABLE_NAME,
 )
 from src.get_chroma_collection import get_collection
@@ -59,4 +60,34 @@ def save_concept(conceptDTO: ConceptDTO):
         ids=[conceptDTO.id],
         embeddings=[conceptDTO.embedding],
         documents=[conceptDTO.normalized_concept],
+    )
+
+
+@dataclass
+class InsightMetadata:
+    insight_id: int
+    source_type: str
+    source_status: str
+    document_id: int | None
+    document_chunk_id: int | None
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+
+@dataclass
+class InsightDTO:
+    id: str
+    embedding: list[float]
+    embedding_text: str
+    metadata: InsightMetadata
+
+
+def save_insight(insightDTO: InsightDTO):
+    collection = get_collection(CHROMA_INSIGHT_TABLE_NAME)
+    collection.upsert(
+        ids=[insightDTO.id],
+        embeddings=[insightDTO.embedding],
+        documents=[insightDTO.embedding_text],
+        metadatas=[insightDTO.metadata.to_dict()],
     )

@@ -9,7 +9,11 @@ import os
 import chromadb
 
 import src.config.logging_config as logging_config
-from src.config.config import CHROMA_KNOWLEDGE_TABLE_NAME, PERSIST_DIRECTORY
+from src.config.config import (
+    CHROMA_INSIGHT_TABLE_NAME,
+    CHROMA_KNOWLEDGE_TABLE_NAME,
+    PERSIST_DIRECTORY,
+)
 from src.embedding.getEmbedding import get_embedding
 
 logger = logging.getLogger(__name__)
@@ -30,8 +34,8 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
     client = chromadb.PersistentClient(path=persist_dir)
 
     # 2. 获取集合
-    collection = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
-    logger.info(f"表集合大小 {collection.count()}")
+    collection_knowledge = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    logger.info(f"knowledge表集合大小 {collection_knowledge.count()}")
 
     # 3. 生成查询向量并搜索
     embedding = get_embedding(query)
@@ -39,14 +43,25 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
         logger.error("❌ Embedding 生成失败")
         return
 
-    results = collection.query(
+    results_knowledge = collection_knowledge.query(
         query_embeddings=[embedding],
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
 
     # 4. 格式化输出（带相似度）
-    log_results(results, query, show_score=show_score)
+    log_results(results_knowledge, query, show_score=show_score)
+    try:
+        collection_insight = client.get_collection(CHROMA_INSIGHT_TABLE_NAME)
+        logger.info(f"knowledge表集合大小 {collection_insight.count()}")
+        results_insight = collection_insight.query(
+            query_embeddings=[embedding],
+            n_results=top_k,
+            include=["documents", "metadatas", "distances"],
+        )
+        log_results(results_insight, query, show_score=show_score)
+    except Exception:
+        logger.exception("chroma insight query error")
 
 
 def log_results(results, query, show_score: bool = True):
@@ -63,8 +78,9 @@ def log_results(results, query, show_score: bool = True):
     logger.info("─" * 60)
 
     if results["documents"] and results["documents"][0]:
-        for i, (doc, meta, distance) in enumerate(
+        for i, (id, doc, meta, distance) in enumerate(
             zip(
+                results["ids"][0],
                 results["documents"][0],
                 results["metadatas"][0],
                 results["distances"][0],
@@ -77,11 +93,11 @@ def log_results(results, query, show_score: bool = True):
             similarity = 1 - distance if distance is not None else None
 
             if show_score and similarity is not None:
-                logger.info(f"[{i}] 📄 {title}")
+                logger.info(f"[{i}]  id:{id}  📄 {title}")
                 logger.info(f"    📁 来源：{source}")
                 logger.info(f"    📊 相似度：{similarity:.4f} (距离：{distance:.4f})")
             else:
-                logger.info(f"[{i}] {source}")
+                logger.info(f"[{i}]  id:{id}   {source}")
             logger.info(f"    📝 {doc[:150]}...")
             logger.info("")
     else:

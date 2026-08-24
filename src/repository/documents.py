@@ -55,7 +55,9 @@ def _insert_document(
     return cursor.lastrowid
 
 
-def _query_by_file_name_hash(conn: sqlite3.Connection, file_name_hash: str) -> DocumentDO | None:
+def _query_by_file_name_hash(
+    conn: sqlite3.Connection, file_name_hash: str
+) -> DocumentDO | None:
     row = conn.execute(
         f"""
         select * from {TABLE_NAME} where file_name_hash = ?
@@ -77,7 +79,9 @@ def query_by_file_name_hash(file_name_hash: str) -> DocumentDO | None:
         return _query_by_file_name_hash(conn, file_name_hash)
 
 
-def _query_by_content_hash(conn: sqlite3.Connection, content_hash: str) -> DocumentDO | None:
+def _query_by_content_hash(
+    conn: sqlite3.Connection, content_hash: str
+) -> DocumentDO | None:
     row = conn.execute(
         f"""
             select * from {TABLE_NAME} where content_hash = ?
@@ -163,3 +167,23 @@ def delete_by_id(conn: sqlite3.Connection, id: int):
             """,
         (id,),
     )
+
+
+def query_by_file_name(file_name: str) -> list[DocumentDO]:
+    with get_sqlite_connection() as conn:
+        rows = conn.execute(
+            f"""
+                select * from {TABLE_NAME} where file_name = ?
+            """,
+            (file_name,),
+        ).fetchall()
+
+        result = []
+
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            result.append(DocumentDO(**data))
+
+        return result

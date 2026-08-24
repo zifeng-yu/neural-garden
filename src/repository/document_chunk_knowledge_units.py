@@ -181,3 +181,23 @@ def delete_by_document_id(conn: sqlite3.Connection, document_id: int):
             """,
         (document_id,),
     )
+
+
+def query_by_title(title: str) -> list[DocumentChunkKnowledgeUnits]:
+    with get_sqlite_connection() as conn:
+        rows = conn.execute(
+            f"""
+                select * from {TABLE_NAME} where title = ?
+                """,
+            (title,),
+        ).fetchall()
+
+        result = []
+
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            result.append(DocumentChunkKnowledgeUnits(**data))
+
+        return result

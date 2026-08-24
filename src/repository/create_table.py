@@ -139,6 +139,23 @@ def create_tables(conn):
     """
     conn.execute(sql_relation_evidence)
 
+    sql_insights = """
+    CREATE TABLE IF NOT EXISTS insights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        action_items TEXT NOT NULL,
+        relation_concepts TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        document_id INTEGER,
+        document_chunk_id INTEGER,
+        source_status TEXT NOT NULL DEFAULT 'online',
+        created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+        updated_at DATETIME DEFAULT (datetime('now', '+8 hours'))
+    );
+    """
+    conn.execute(sql_insights)
+
     conn.commit()
 
 
@@ -163,6 +180,7 @@ def drop_table():
             DROP TABLE IF EXISTS document_chunk_knowledge_units;
             DROP TABLE IF EXISTS document_chunks;
             DROP TABLE IF EXISTS documents;
+            DROP TABLE IF EXISTS insights;
             """
         conn.executescript(sql)
         conn.commit()
