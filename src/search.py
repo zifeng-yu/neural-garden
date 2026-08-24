@@ -57,6 +57,7 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
         results_insight = collection_insight.query(
             query_embeddings=[embedding],
             n_results=top_k,
+            where={"source_status": {"$eq": "online"}},
             include=["documents", "metadatas", "distances"],
         )
         log_results(results_insight, query, show_score=show_score)

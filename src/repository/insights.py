@@ -72,17 +72,18 @@ def save_insights(
         return cursor.lastrowid
 
 
-def mark_source_status_offline_by_document_id(document_id: int):
+def mark_source_status_offline_by_document_id(document_id: int) -> list[int]:
     with get_sqlite_connection() as conn:
-        conn.execute(
+        rows = conn.execute(
             """
-            update insights set source_status = ? where document_id = ?
+            update insights set source_status = ? where document_id = ? returning id
             """,
             (
                 SourceStatusEnum.OFFLINE.value,
                 document_id,
             ),
-        )
+        ).fetchall()
+        return [row["id"] for row in rows]
 
 
 def query_by_id(id: int) -> InsightsDO | None:

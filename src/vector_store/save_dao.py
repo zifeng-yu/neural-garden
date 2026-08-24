@@ -91,3 +91,11 @@ def save_insight(insightDTO: InsightDTO):
         documents=[insightDTO.embedding_text],
         metadatas=[insightDTO.metadata.to_dict()],
     )
+
+
+def update_insight_metadata(insight_id: str, insight_metadata: InsightMetadata):
+    collection = get_collection(CHROMA_INSIGHT_TABLE_NAME)
+    collection.update(
+        ids=[insight_id],
+        metadatas=[insight_metadata.to_dict()],
+    )

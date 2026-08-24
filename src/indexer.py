@@ -66,6 +66,7 @@ from src.repository.documents import delete_by_id as delete_by_id_documents
 from src.repository.documents import query_by_id as query_by_id_document
 from src.repository.init import sqlite_table_init
 from src.repository.insights import mark_source_status_offline_by_document_id
+from src.repository.insights import query_by_id as query_by_id_insights
 from src.repository.relation_evidence import (
     EvidenceRoleEnum,
     copy_relation_evidence,
@@ -94,10 +95,12 @@ from src.vector_store.query_dao import (
 from src.vector_store.reset import resetDB_CONCEPT, resetDB_INSIGHT, resetDB_KNOWLEDGE
 from src.vector_store.save_dao import (
     ConceptDTO,
+    InsightMetadata,
     KnowledgeUnitDTO,
     KnowledgeUnitMetadata,
     save_concept,
     save_knowlege,
+    update_insight_metadata,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,7 +180,19 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
         delete_by_normalized_concet_hash_concept_chroma(
             need_delete_normalized_concept_hash_list
         )
-        mark_source_status_offline_by_document_id(document_id)
+        insight_ids = mark_source_status_offline_by_document_id(document_id)
+        if insight_ids:
+            for insight_id in insight_ids:
+                insight_do = query_by_id_insights(insight_id)
+                if insight_do:
+                    insight_metadata = InsightMetadata(
+                        insight_do.id,
+                        insight_do.source_type.value,
+                        insight_do.source_status.value,
+                        insight_do.document_id,
+                        insight_do.document_chunk_id,
+                    )
+                    update_insight_metadata(str(insight_do.id), insight_metadata)
         return "need_del"
 
     content_result = query_by_content_hash(content_hash)
