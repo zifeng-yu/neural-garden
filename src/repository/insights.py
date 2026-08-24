@@ -28,6 +28,7 @@ class InsightsDO(BaseDO):
     document_id: int | None
     document_chunk_id: int | None
     source_status: SourceStatusEnum = SourceStatusEnum.ONLINE
+    embedding_text: str = ""
 
 
 def _save_insights(
@@ -140,6 +141,7 @@ def _query_by_id(conn: sqlite3.Connection, id: int) -> InsightsDO | None:
     data["source_status"] = SourceStatusEnum(data["source_status"])
     data["created_at"] = datetime.fromisoformat(data["created_at"])
     data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+    data["embedding_text"] = data.get("embedding_text", "")
 
     return InsightsDO(**data)
 
