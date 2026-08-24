@@ -150,6 +150,7 @@ def create_tables(conn):
         document_id INTEGER,
         document_chunk_id INTEGER,
         source_status TEXT NOT NULL DEFAULT 'online',
+        embedding_text TEXT NOT NULL,
         created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
         updated_at DATETIME DEFAULT (datetime('now', '+8 hours'))
     );

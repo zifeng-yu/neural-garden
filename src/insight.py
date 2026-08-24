@@ -12,7 +12,7 @@ from src.repository.document_chunk_knowledge_units import (
     query_by_title as query_by_title_knowledge_units,
 )
 from src.repository.documents import query_by_file_name as query_by_file_name_documents
-from src.repository.insights import SourceTypeEnum
+from src.repository.insights import SourceStatusEnum, SourceTypeEnum
 from src.repository.insights import query_by_id as query_by_id_insights
 from src.repository.insights import save_insights as save_insights_sqlite
 from src.vector_store.save_dao import InsightDTO, InsightMetadata
@@ -68,6 +68,10 @@ def create_insight(
         source_type,
         document_id,
         document_chunk_id,
+        SourceStatusEnum.ONLINE,
+        InsightEmbeddingTextDTO(
+            title, content, action_items, relation_concepts
+        ).to_embedding_text(),
     )
 
 

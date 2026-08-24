@@ -40,6 +40,7 @@ def _save_insights(
     document_id: int | None,
     document_chunk_id: int | None,
     source_status: SourceStatusEnum = SourceStatusEnum.ONLINE,
+    embedding_text: str = "",
 ) -> int:
     cursor = conn.cursor()
     cursor.execute(
@@ -53,9 +54,10 @@ def _save_insights(
             source_type,
             document_id,
             document_chunk_id,
-            source_status
+            source_status,
+            embedding_text
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             title,
@@ -66,6 +68,7 @@ def _save_insights(
             document_id,
             document_chunk_id,
             source_status.value,
+            embedding_text,
         ),
     )
     if cursor.lastrowid is None:
@@ -82,12 +85,26 @@ def save_insights(
     document_id: int | None,
     document_chunk_id: int | None,
     source_status: SourceStatusEnum = SourceStatusEnum.ONLINE,
+    embedding_text: str = "",
 ) -> int:
     with get_sqlite_connection() as conn:
-        return _save_insights(conn, title, content, action_items, relation_concepts, source_type, document_id, document_chunk_id, source_status)
+        return _save_insights(
+            conn,
+            title,
+            content,
+            action_items,
+            relation_concepts,
+            source_type,
+            document_id,
+            document_chunk_id,
+            source_status,
+            embedding_text,
+        )
 
 
-def _mark_source_status_offline_by_document_id(conn: sqlite3.Connection, document_id: int) -> list[int]:
+def _mark_source_status_offline_by_document_id(
+    conn: sqlite3.Connection, document_id: int
+) -> list[int]:
     rows = conn.execute(
         """
         update insights set source_status = ? where document_id = ? returning id
