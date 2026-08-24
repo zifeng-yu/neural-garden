@@ -8,9 +8,9 @@ Neural Garden Insight 模块单元测试
 """
 
 import os
+import sqlite3
 import sys
 import unittest
-import sqlite3
 from datetime import datetime
 
 # 添加项目路径
@@ -18,15 +18,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import sqlite3
 
-from src.repository.insights import (
-    _save_insights,
-    _query_by_id,
-    _mark_source_status_offline_by_document_id,
-    SourceTypeEnum,
-    SourceStatusEnum,
-    InsightsDO,
-)
 from src.repository.create_table import create_table_init_for_memory
+from src.repository.insights import (
+    InsightsDO,
+    SourceStatusEnum,
+    SourceTypeEnum,
+    _mark_source_status_offline_by_document_id,
+    _query_by_id,
+    _save_insights,
+)
 
 
 def get_memory_sqlite_connection():
@@ -43,13 +43,14 @@ class TestInsightsRepository(unittest.TestCase):
         """每个测试前初始化内存数据库"""
         # 使用同一个连接，避免表不存在的问题
         import sqlite3
+
         self.conn = sqlite3.connect(":memory:")
         self.conn.row_factory = sqlite3.Row
         create_table_init_for_memory(self.conn)
 
     def tearDown(self):
         """每个测试后关闭连接"""
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             self.conn.close()
 
     def test_save_and_query_insight(self):
@@ -63,11 +64,11 @@ class TestInsightsRepository(unittest.TestCase):
             source_type=SourceTypeEnum.USER,
             document_id=None,
             document_chunk_id=None,
-            source_status=SourceStatusEnum.ONLINE
+            source_status=SourceStatusEnum.ONLINE,
         )
-        
+
         self.assertGreater(insight_id, 0)
-        
+
         # 查询
         result = _query_by_id(self.conn, insight_id)
         self.assertIsNotNone(result)
@@ -91,9 +92,9 @@ class TestInsightsRepository(unittest.TestCase):
             source_type=SourceTypeEnum.DOCUMENT,
             document_id=123,
             document_chunk_id=456,
-            source_status=SourceStatusEnum.ONLINE
+            source_status=SourceStatusEnum.ONLINE,
         )
-        
+
         result = _query_by_id(self.conn, insight_id)
         self.assertIsNotNone(result)
         self.assertEqual(result.source_type, SourceTypeEnum.DOCUMENT)
@@ -113,7 +114,7 @@ class TestInsightsRepository(unittest.TestCase):
             document_id=100,
             document_chunk_id=None,
         )
-        
+
         id2 = _save_insights(
             self.conn,
             title="洞察 2",
@@ -124,7 +125,7 @@ class TestInsightsRepository(unittest.TestCase):
             document_id=100,
             document_chunk_id=None,
         )
-        
+
         # 创建另一个文档的 Insight（不应该被影响）
         id3 = _save_insights(
             self.conn,
@@ -136,19 +137,19 @@ class TestInsightsRepository(unittest.TestCase):
             document_id=200,
             document_chunk_id=None,
         )
-        
+
         # 标记 document_id=100 的 Insight 为 offline
         offline_ids = _mark_source_status_offline_by_document_id(self.conn, 100)
-        
+
         self.assertEqual(len(offline_ids), 2)
         self.assertIn(id1, offline_ids)
         self.assertIn(id2, offline_ids)
-        
+
         # 验证状态已更新
         result1 = _query_by_id(self.conn, id1)
         result2 = _query_by_id(self.conn, id2)
         result3 = _query_by_id(self.conn, id3)
-        
+
         self.assertEqual(result1.source_status, SourceStatusEnum.OFFLINE)
         self.assertEqual(result2.source_status, SourceStatusEnum.OFFLINE)
         self.assertEqual(result3.source_status, SourceStatusEnum.ONLINE)  # 不应受影响
@@ -165,7 +166,7 @@ class TestInsightsRepository(unittest.TestCase):
             document_id=None,
             document_chunk_id=None,
         )
-        
+
         result = _query_by_id(self.conn, insight_id)
         self.assertEqual(result.action_items, ["行动 1", "行动 2 中文"])
         self.assertEqual(result.relation_concepts, ["负利率", "货币政策"])
@@ -181,7 +182,7 @@ class TestInsightBusinessLogic(unittest.TestCase):
 
     def tearDown(self):
         """每个测试后关闭连接"""
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             self.conn.close()
 
     def test_relation_concepts_priority_user_input(self):
@@ -197,7 +198,7 @@ class TestInsightBusinessLogic(unittest.TestCase):
             document_id=None,
             document_chunk_id=None,
         )
-        
+
         result = _query_by_id(self.conn, insight_id)
         self.assertEqual(result.relation_concepts, ["用户概念 1", "用户概念 2"])
 
