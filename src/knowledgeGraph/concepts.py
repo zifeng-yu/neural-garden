@@ -20,7 +20,7 @@ from src.repository.document_chunk_concepts import (
 )
 from src.repository.document_chunks import query_by_ids as query_by_ids_chunks
 from src.repository.document_insert_domain import InsertChunk
-from src.similarity import calculate_similarity
+from src.util.similarity import calculate_similarity
 from src.util.getHashValue import get_hash_value as hash
 from src.vector_store.query_dao import search_by_threshold_concept
 

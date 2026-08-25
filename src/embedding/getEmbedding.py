@@ -1,12 +1,15 @@
 import logging
 
+import dashscope
+from dashscope import TextEmbedding
+
 import src.config.logging_config as logging_config
 from src.config.config import API_KEY, EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
 
 
-def get_embedding(text: str) -> list:
+def get_embedding(text: str) -> list | None:
     """
     调用 DashScope API 获取文本向量
 
@@ -18,8 +21,6 @@ def get_embedding(text: str) -> list:
         向量列表（float）
     """
     try:
-        import dashscope
-        from dashscope import TextEmbedding
 
         dashscope.api_key = API_KEY
 
@@ -32,6 +33,6 @@ def get_embedding(text: str) -> list:
                 f"⚠️  Embedding API 调用失败：{response.code} - {response.message}"
             )
             return None
-    except Exception as e:
-        logger.info(f"⚠️  Embedding 调用异常：{e}")
+    except Exception:
+        logger.exception("⚠️  Embedding 调用异常：")
         return None

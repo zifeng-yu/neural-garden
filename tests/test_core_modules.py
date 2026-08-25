@@ -17,7 +17,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.document.splitter import markdown_spilt
-from src.similarity import calculate_similarity
+from src.util.similarity import calculate_similarity
 from src.util.getHashValue import get_hash_value as hash
 
 
