@@ -372,7 +372,7 @@ neural-garden/
 ```
 
 **架构说明**：
-- **SQLite**（11 张生产表）：documents/document_chunks/document_chunk_knowledge_units/document_chunk_concepts/concept_relations/relation_evidence/insights/search_sessions/search_results/feedback_events
+- **SQLite**（10 张生产表）：documents/document_chunks/document_chunk_knowledge_units/document_chunk_concepts/concept_relations/relation_evidence/insights/search_sessions/search_results/feedback_events
 - **ChromaDB**（3 个 collection）：knowledge/concept/insight
 - **NetworkX**（内存图）：MultiDiGraph（支持多边）
 - **测试覆盖**：51 个单元测试，全部通过
