@@ -36,6 +36,6 @@ def resetDB_INSIGHT():
     try:
         client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
         client.delete_collection(CHROMA_INSIGHT_TABLE_NAME)
-        logger.info("reset chromaDB CONCEPT finish")
+        logger.info("reset chromaDB insight finish")
     except chromadb.errors.NotFoundError:
         pass

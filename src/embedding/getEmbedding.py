@@ -9,7 +9,7 @@ from src.config.config import API_KEY, EMBEDDING_MODEL
 logger = logging.getLogger(__name__)
 
 
-def get_embedding(text: str) -> list | None:
+def get_embedding(text: str) -> list[float] | None:
     """
     调用 DashScope API 获取文本向量
 

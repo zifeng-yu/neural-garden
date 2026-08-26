@@ -5,16 +5,23 @@ Lesson 03: 向量搜索入门（增强版）
 
 import logging
 import os
+import uuid
 
 import chromadb
 
 import src.config.logging_config as logging_config
-from src.config.config import (
-    CHROMA_INSIGHT_TABLE_NAME,
-    CHROMA_KNOWLEDGE_TABLE_NAME,
-    PERSIST_DIRECTORY,
-)
+from src.config.config import CHROMA_INSIGHT_TABLE_NAME, CHROMA_KNOWLEDGE_TABLE_NAME
 from src.embedding.getEmbedding import get_embedding
+from src.get_chroma_collection import get_collection
+from src.repository.search_results import (
+    RetrievalTypeEnum,
+    SourceTypeEnum,
+    save_search_results,
+)
+from src.repository.search_sessions import (
+    save_search_sessions,
+    update_result_count_by_session_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,32 +35,31 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
         top_k: 返回结果数量
         show_score: 是否显示相似度分数
     """
-    # 1. 初始化 Chroma 客户端
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    persist_dir = os.path.join(base_dir, PERSIST_DIRECTORY)
-    client = chromadb.PersistentClient(path=persist_dir)
-
-    # 2. 获取集合
-    collection_knowledge = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
-    logger.info(f"knowledge表集合大小 {collection_knowledge.count()}")
-
-    # 3. 生成查询向量并搜索
+    #  生成查询向量并搜索
     embedding = get_embedding(query)
     if embedding is None:
         logger.error("❌ Embedding 生成失败")
         return
+
+    # 模拟创建session_id
+    session_id = uuid.uuid4().hex
+
+    save_search_sessions(session_id, query, 0)
+
+    collection_knowledge = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    logger.info(f"knowledge表集合大小 {collection_knowledge.count()}")
 
     results_knowledge = collection_knowledge.query(
         query_embeddings=[embedding],
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
-
     # 4. 格式化输出（带相似度）
     log_results(results_knowledge, query, show_score=show_score)
+    results_insight = None
     try:
-        collection_insight = client.get_collection(CHROMA_INSIGHT_TABLE_NAME)
-        logger.info(f"knowledge表集合大小 {collection_insight.count()}")
+        collection_insight = get_collection(CHROMA_INSIGHT_TABLE_NAME)
+        logger.info(f"insight表集合大小 {collection_insight.count()}")
         results_insight = collection_insight.query(
             query_embeddings=[embedding],
             n_results=top_k,
@@ -63,6 +69,68 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
         log_results(results_insight, query, show_score=show_score)
     except Exception:
         logger.exception("chroma insight query error")
+
+    # 简单rank 可以说先demo 先排insight 后排knowledage
+    rank = 1
+    if (
+        results_insight
+        and results_insight["documents"]
+        and results_insight["metadatas"]
+        and results_insight["distances"]
+    ):
+        for id, doc, meta, distance in zip(
+            results_insight["ids"][0],
+            results_insight["documents"][0],
+            results_insight["metadatas"][0],
+            results_insight["distances"][0],
+        ):
+            document_id = meta.get("document_id")
+            if not isinstance(document_id, int):
+                document_id = None
+            document_chunk_id = meta.get("document_chunk_id")
+            if not isinstance(document_chunk_id, int):
+                document_chunk_id = None
+            save_search_results(
+                session_id,
+                document_id,
+                document_chunk_id,
+                rank,
+                1 - distance,
+                distance,
+                RetrievalTypeEnum.VECTOR,
+                SourceTypeEnum.CHROMA_INSIGHT,
+            )
+            rank += 1
+    if (
+        results_knowledge
+        and results_knowledge["documents"]
+        and results_knowledge["metadatas"]
+        and results_knowledge["distances"]
+    ):
+        for id, doc, meta, distance in zip(
+            results_knowledge["ids"][0],
+            results_knowledge["documents"][0],
+            results_knowledge["metadatas"][0],
+            results_knowledge["distances"][0],
+        ):
+            document_id = meta.get("document_id")
+            if not isinstance(document_id, int):
+                document_id = None
+            document_chunk_id = meta.get("document_chunk_id")
+            if not isinstance(document_chunk_id, int):
+                document_chunk_id = None
+            save_search_results(
+                session_id,
+                document_id,
+                document_chunk_id,
+                rank,
+                1 - distance,
+                distance,
+                RetrievalTypeEnum.VECTOR,
+                SourceTypeEnum.CHROMA_KNOWLEDGE,
+            )
+            rank += 1
+    update_result_count_by_session_id(session_id, rank - 1)
 
 
 def log_results(results, query, show_score: bool = True):

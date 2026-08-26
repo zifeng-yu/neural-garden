@@ -15,7 +15,11 @@ from src.repository.documents import query_by_file_name as query_by_file_name_do
 from src.repository.insights import SourceStatusEnum, SourceTypeEnum
 from src.repository.insights import query_by_id as query_by_id_insights
 from src.repository.insights import save_insights as save_insights_sqlite
-from src.vector_store.save_dao import InsightDTO, InsightMetadata
+from src.vector_store.save_dao import (
+    InsightDTO,
+    InsightMetadata,
+    log_insight_collection_count,
+)
 from src.vector_store.save_dao import save_insight as save_insight_chroma
 
 
@@ -111,6 +115,7 @@ def create_insight_vector(insight_id: int):
     )
 
     save_insight_chroma(insight_dto)
+    log_insight_collection_count()
 
 
 def user_insight_data(

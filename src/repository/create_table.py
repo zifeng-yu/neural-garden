@@ -1,7 +1,9 @@
+import sqlite3
+
 from src.get_sqlite_connection import get_sqlite_connection
 
 
-def create_tables(conn):
+def create_tables(conn: sqlite3.Connection):
     """创建所有表（接收连接参数，用于测试或生产）"""
     # 文档表
     sql_documents = """
@@ -157,6 +159,53 @@ def create_tables(conn):
     """
     conn.execute(sql_insights)
 
+    sql_search_sessions = """
+    CREATE TABLE IF NOT EXISTS search_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT UNIQUE,
+        query TEXT NOT NULL,
+        result_count INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+        updated_at DATETIME DEFAULT (datetime('now', '+8 hours'))
+    );
+    """
+    conn.execute(sql_search_sessions)
+
+    sql_search_results = """
+    CREATE TABLE IF NOT EXISTS search_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        document_id INTEGER,
+        document_chunk_id INTEGER,
+        rank INTEGER NOT NULL,
+        score REAL NOT NULL,
+        raw_score REAL NOT NULL,
+        retrieval_type TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+        updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+        FOREIGN KEY (session_id)
+            REFERENCES search_sessions(session_id)
+    );
+    """
+    conn.execute(sql_search_results)
+
+    sql_feedback_events = """
+    CREATE TABLE IF NOT EXISTS feedback_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        document_id INTEGER,
+        rank INTEGER,
+        dwell_time INTEGER,
+        created_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+        updated_at DATETIME DEFAULT (datetime('now', '+8 hours')),
+        FOREIGN KEY (session_id)
+            REFERENCES search_sessions(session_id)
+    );
+    """
+    conn.execute(sql_feedback_events)
+
     conn.commit()
 
 
@@ -182,6 +231,9 @@ def drop_table():
             DROP TABLE IF EXISTS document_chunks;
             DROP TABLE IF EXISTS documents;
             DROP TABLE IF EXISTS insights;
+            DROP TABLE IF EXISTS search_sessions;
+            DROP TABLE IF EXISTS search_results;
+            DROP TABLE IF EXISTS feedback_events;
             """
         conn.executescript(sql)
         conn.commit()

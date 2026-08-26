@@ -1,12 +1,16 @@
 import json
+import logging
 from dataclasses import asdict, dataclass
 
+import src.config.logging_config as logging_config
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
     CHROMA_INSIGHT_TABLE_NAME,
     CHROMA_KNOWLEDGE_TABLE_NAME,
 )
 from src.get_chroma_collection import get_collection
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -99,3 +103,8 @@ def update_insight_metadata(insight_id: str, insight_metadata: InsightMetadata):
         ids=[insight_id],
         metadatas=[insight_metadata.to_dict()],
     )
+
+
+def log_insight_collection_count():
+    collection = get_collection(CHROMA_INSIGHT_TABLE_NAME)
+    logger.info(f"insight 集合大小 {collection.count()}")
