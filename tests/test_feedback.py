@@ -13,16 +13,16 @@ import unittest
 from datetime import datetime
 
 from src.repository.create_table import create_table_init_for_memory
-from src.repository.search_sessions import (
-    _save_search_sessions,
-    _update_result_count_by_session_id,
-)
+from src.repository.feedback_events import EventTypeEnum, _save_feedback_events
 from src.repository.search_results import (
     RetrievalTypeEnum,
     SourceTypeEnum,
     _save_search_results,
 )
-from src.repository.feedback_events import EventTypeEnum, _save_feedback_events
+from src.repository.search_sessions import (
+    _save_search_sessions,
+    _update_result_count_by_session_id,
+)
 
 
 class TestSearchSessions(unittest.TestCase):
@@ -49,8 +49,7 @@ class TestSearchSessions(unittest.TestCase):
 
         # 查询验证
         cursor = self.conn.execute(
-            "SELECT * FROM search_sessions WHERE session_id = ?",
-            (session_id,)
+            "SELECT * FROM search_sessions WHERE session_id = ?", (session_id,)
         )
         row = cursor.fetchone()
         self.assertIsNotNone(row)
@@ -68,7 +67,7 @@ class TestSearchSessions(unittest.TestCase):
         # 验证已更新
         cursor = self.conn.execute(
             "SELECT result_count FROM search_sessions WHERE session_id = ?",
-            (session_id,)
+            (session_id,),
         )
         row = cursor.fetchone()
         self.assertEqual(row["result_count"], 10)
@@ -111,13 +110,12 @@ class TestSearchResults(unittest.TestCase):
             score=0.85,
             raw_score=0.15,
             retrieval_type=RetrievalTypeEnum.VECTOR,
-            source_type=SourceTypeEnum.CHROMA_KNOWLEDGE
+            source_type=SourceTypeEnum.CHROMA_KNOWLEDGE,
         )
 
         # 查询验证
         cursor = self.conn.execute(
-            "SELECT * FROM search_results WHERE session_id = ?",
-            (session_id,)
+            "SELECT * FROM search_results WHERE session_id = ?", (session_id,)
         )
         row = cursor.fetchone()
         self.assertIsNotNone(row)
@@ -140,13 +138,12 @@ class TestSearchResults(unittest.TestCase):
             score=0.9,
             raw_score=0.1,
             retrieval_type=RetrievalTypeEnum.VECTOR,
-            source_type=SourceTypeEnum.CHROMA_INSIGHT
+            source_type=SourceTypeEnum.CHROMA_INSIGHT,
         )
 
         # 查询验证
         cursor = self.conn.execute(
-            "SELECT * FROM search_results WHERE session_id = ?",
-            (session_id,)
+            "SELECT * FROM search_results WHERE session_id = ?", (session_id,)
         )
         row = cursor.fetchone()
         self.assertIsNotNone(row)
@@ -179,13 +176,12 @@ class TestFeedbackEvents(unittest.TestCase):
             event_type=EventTypeEnum.CLICK,
             document_id=1,
             rank=2,
-            dwell_time=None
+            dwell_time=None,
         )
 
         # 查询验证
         cursor = self.conn.execute(
-            "SELECT * FROM feedback_events WHERE session_id = ?",
-            (session_id,)
+            "SELECT * FROM feedback_events WHERE session_id = ?", (session_id,)
         )
         row = cursor.fetchone()
         self.assertIsNotNone(row)
@@ -204,13 +200,12 @@ class TestFeedbackEvents(unittest.TestCase):
             event_type=EventTypeEnum.DWELL,
             document_id=1,
             rank=1,
-            dwell_time=30
+            dwell_time=30,
         )
 
         # 查询验证
         cursor = self.conn.execute(
-            "SELECT * FROM feedback_events WHERE session_id = ?",
-            (session_id,)
+            "SELECT * FROM feedback_events WHERE session_id = ?", (session_id,)
         )
         row = cursor.fetchone()
         self.assertIsNotNone(row)
@@ -229,13 +224,13 @@ class TestFeedbackEvents(unittest.TestCase):
                 event_type=event_type,
                 document_id=1,
                 rank=1,
-                dwell_time=10
+                dwell_time=10,
             )
 
         # 验证所有事件都已保存
         cursor = self.conn.execute(
             "SELECT DISTINCT event_type FROM feedback_events WHERE session_id = ?",
-            (session_id,)
+            (session_id,),
         )
         rows = cursor.fetchall()
         self.assertEqual(len(rows), len(EventTypeEnum))
@@ -266,7 +261,7 @@ class TestForeignKeyConstraints(unittest.TestCase):
                 event_type=EventTypeEnum.CLICK,
                 document_id=1,
                 rank=1,
-                dwell_time=None
+                dwell_time=None,
             )
 
     def test_search_results_requires_session(self):
@@ -282,7 +277,7 @@ class TestForeignKeyConstraints(unittest.TestCase):
                 score=0.9,
                 raw_score=0.1,
                 retrieval_type=RetrievalTypeEnum.VECTOR,
-                source_type=SourceTypeEnum.CHROMA_KNOWLEDGE
+                source_type=SourceTypeEnum.CHROMA_KNOWLEDGE,
             )
 
 
