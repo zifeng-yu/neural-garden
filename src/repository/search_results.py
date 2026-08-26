@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import dataclass
 from enum import Enum
 
@@ -33,6 +34,48 @@ class SearchResultDO(BaseDO):
     source_type: SourceTypeEnum
 
 
+def _save_search_results(
+    conn: sqlite3.Connection,
+    session_id: str,
+    document_id: int | None,
+    document_chunk_id: int | None,
+    rank: int,
+    score: float,
+    raw_score: float,
+    retrieval_type: RetrievalTypeEnum,
+    source_type: SourceTypeEnum,
+) -> int:
+    cursor = conn.execute(
+        """
+        INSERT INTO search_results
+        (
+            session_id,
+            document_id,
+            document_chunk_id,
+            rank,
+            score,
+            raw_score,
+            retrieval_type,
+            source_type
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            document_id,
+            document_chunk_id,
+            rank,
+            score,
+            raw_score,
+            retrieval_type.value,
+            source_type.value,
+        ),
+    )
+    if cursor.lastrowid is None:
+        raise RuntimeError("insert search_results failed")
+    return cursor.lastrowid
+
+
 def save_search_results(
     session_id: str,
     document_id: int | None,
@@ -44,32 +87,14 @@ def save_search_results(
     source_type: SourceTypeEnum,
 ) -> int:
     with get_sqlite_connection() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO search_results
-            (
-                session_id,
-                document_id,
-                document_chunk_id,
-                rank,
-                score,
-                raw_score,
-                retrieval_type,
-                source_type
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                session_id,
-                document_id,
-                document_chunk_id,
-                rank,
-                score,
-                raw_score,
-                retrieval_type.value,
-                source_type.value,
-            ),
+        return _save_search_results(
+            conn,
+            session_id,
+            document_id,
+            document_chunk_id,
+            rank,
+            score,
+            raw_score,
+            retrieval_type,
+            source_type,
         )
-        if cursor.lastrowid is None:
-            raise RuntimeError("insert search_results failed")
-        return cursor.lastrowid

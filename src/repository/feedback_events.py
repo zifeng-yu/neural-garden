@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import dataclass
 from enum import Enum
 
@@ -22,6 +23,39 @@ class FeedbackEventsDO(BaseDO):
     dwell_time: int
 
 
+def _save_feedback_events(
+    conn: sqlite3.Connection,
+    session_id: str,
+    event_type: EventTypeEnum,
+    document_id: int | None,
+    rank: int | None,
+    dwell_time: int | None,
+) -> int:
+    cursor = conn.execute(
+        """
+        INSERT INTO feedback_events
+        (
+            session_id,
+            event_type,
+            document_id,
+            rank,
+            dwell_time
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            event_type.value,
+            document_id,
+            rank,
+            dwell_time,
+        ),
+    )
+    if cursor.lastrowid is None:
+        raise RuntimeError("insert feedback_events failed")
+    return cursor.lastrowid
+
+
 def save_feedback_events(
     session_id: str,
     event_type: EventTypeEnum,
@@ -30,26 +64,6 @@ def save_feedback_events(
     dwell_time: int | None,
 ) -> int:
     with get_sqlite_connection() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO feedback_events
-            (
-                session_id,
-                event_type,
-                document_id,
-                rank,
-                dwell_time
-            )
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                session_id,
-                event_type.value,
-                document_id,
-                rank,
-                dwell_time,
-            ),
+        return _save_feedback_events(
+            conn, session_id, event_type, document_id, rank, dwell_time
         )
-        if cursor.lastrowid is None:
-            raise RuntimeError("insert feedback_events failed")
-        return cursor.lastrowid
