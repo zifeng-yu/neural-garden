@@ -2,7 +2,7 @@
 
 > 个人认知系统 · 记录 · 连接 · 调用
 
-**Neural Garden** 是一个帮助你构建个人知识系统的工具。它基于 RAG（检索增强生成）和向量检索技术，让你的知识不再是孤立的笔记，而是可以相互连接、智能检索的认知网络。
+**Neural Garden** 是一个帮助你构建个人知识系统的工具。它基于 RAG（检索增强生成）、向量检索和知识图谱技术，让你的知识不再是孤立的笔记，而是可以相互连接、智能检索的认知网络。
 
 ---
 
@@ -32,20 +32,47 @@ cp .env.example .env
 # 正常索引（增量更新，跳过未变化的文件）
 python -m src.indexer
 
-# 清空向量库,sqlite库后重新索引
+# 清空所有数据库后重新索引
 python -m src.indexer --resetAllDB
 ```
 
 **增量更新机制**：
 - 首次运行：全量索引所有文件
-- 后续运行：自动检测文件变化，只更新有变化的文件
-- 基于 `content_hash` 判断内容是否变化，避免重复调用 LLM 和 Embedding API
+- 后续运行：自动检测文件变化（基于 `content_hash`），只更新有变化的文件
+- 支持 skip/del/copy/new 四种状态，避免重复调用 LLM 和 Embedding API
 
 ### 4. 搜索知识
 
 ```bash
 python -m src.search "什么是 Neural Garden"
 ```
+
+**搜索功能**：
+- 联合搜索 ChromaDB knowledge + insight 两个 collection
+- 自动记录搜索会话（search_sessions 表）
+- 自动记录搜索结果（search_results 表）
+- 支持用户反馈记录（feedback_events 表）
+
+---
+
+## 核心架构
+
+### 双层存储架构
+
+```
+                    ┌──────────────┐
+Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源 (8 张表)
+                    │  (8 张表)     │
+                    └──────┬───────┘
+                           ↓
+                    ┌──────────────┐
+                    │  ChromaDB    │ → Embedding/相似度检索 (3 个 collection)
+                    │  (3 个 collection) │
+                    └──────────────┘
+```
+
+**SQLite 擅长**：精确查询、关系追溯、数据完整性
+**ChromaDB 擅长**：语义相似度检索、向量空间查询
 
 ---
 
@@ -135,20 +162,15 @@ save_knowlege(KnowledgeUnitDTO(
     id=chunk_id,
     embedding=embedding,
     text=knowledgeUnit.to_embedding_text(),
-    metadata=KnowledgeUnitMetadata(
-        file_name=filename,
-        document_id=doc_id,
-        document_chunk_id=chunk_id,
-        title=knowledgeUnit.title,
-        keywords=knowledgeUnit.keywords
-    )
+    metadata=KnowledgeUnitMetadata(...)
 ))
 ```
 
 **增量更新逻辑**：
-1. 基于文件名 + 内容哈希判断文件是否变化
-2. 未变化 → 跳过（节省 API 成本）
-3. 已变化 → `upsert` 更新（覆盖旧向量）
+1. 基于文件名哈希 + 内容哈希判断文件是否变化
+2. 未变化 → skip（节省 API 成本）
+3. 已变化 → del 旧数据 + insert 新数据
+4. 相同内容不同文件 → copy（复用已有 ID）
 
 ---
 
@@ -251,26 +273,29 @@ visualize_graph(G, "graphPNG/", "概念图")
 
 ## 课程进度
 
-### 主课程（7 课，已完成 6 课）
+### 主课程（7 课）
 
 | 课次 | 主题 | 状态 | 核心功能 | 推送日期 |
 |------|------|------|---------|----------|
 | Lesson 01 | 5 分钟跑起来 | ✅ 完成 | 项目骨架 + Hello World 搜索 | 2026-07-19 |
 | Lesson 02 | 知识单元提取 | ✅ 完成 | LLM 提取 + 向量化 | 2026-07-26 |
-| Lesson 02.1 | 生产级增强 | ✅ 完成 | Pydantic 验证 + 内容哈希检测 | 2026-07-26 |
 | Lesson 03 | 向量搜索入门 | ✅ 完成 | Chroma 搜索 + 相似度计算 | 2026-08-03 |
 | Lesson 04 | 概念图构建 | ✅ 完成 | NetworkX + 概念归一化 | 2026-08-05 (提前) |
 | Lesson 05 | Insight 记录 | ✅ 完成 | `insight.py` + SQLite + ChromaDB | 2026-08-11 (补) |
 | Lesson 06 | 反馈闭环 | ✅ 完成 | `feedback.py` + 数据迭代 | 2026-08-23 |
-| Lesson 07 | 自动化部署 | ⏳ 待推送 | Cron + MCP 封装 + 验收 | 待定 |
+| Lesson 07 | 数据完整性与反馈闭环 | ✅ 完成 | del/copy 逻辑 + 3 张反馈表 | 2026-08-30 (待推送) |
 
-### 补充课程（额外材料）
+**课程完成率**：6/7 (86%)，最后一课 8/30 推送
+
+### 补充课程（3 课）
 
 | 课次 | 主题 | 状态 | 说明 |
 |------|------|------|------|
 | Extra 01 | SQLite 基础与实战 | ✅ 完成 | 生产表（8 张）vs 教程简化表 |
 | Extra 02 | 反馈闭环与数据完整性 | ✅ 完成 | del/copy 逻辑实现指南 |
 | Extra 03 | Embedding、向量、图深度解析 | ✅ 完成 | 专业共识 vs 代码现状对照 |
+
+**补充课程完成率**：3/3 (100%)
 
 ---
 
@@ -285,14 +310,14 @@ neural-garden/
 ├── .env.example                # 环境变量模板
 ├── src/
 │   ├── __init__.py
-│   ├── indexer.py              # 知识索引器（增量更新）
-│   ├── search.py               # 向量搜索入口（支持 knowledge + insight 联合搜索）
-│   ├── graph.py                # 知识图谱构建
+│   ├── indexer.py              # 知识索引器（增量更新：skip/del/copy/new）
+│   ├── search.py               # 向量搜索入口（联合搜索 knowledge + insight）
+│   ├── graph.py                # 知识图谱构建（MultiDiGraph）
 │   ├── insight.py              # Insight 记录模块（CLI 入口）
-│   ├── feedback.py             # 反馈闭环模块（骨架）
-│   ├── similarity.py           # 相似度计算工具
+│   ├── feedback.py             # 反馈闭环模块（CLI 入口）
+│   ├── similarity.py           # 相似度计算工具（sklearn）
 │   ├── get_chroma_collection.py # Chroma 集合获取工具
-│   ├── get_sqlite_connection.py # SQLite 连接工具
+│   ├── get_sqlite_connection.py # SQLite 连接工具（开启外键约束）
 │   ├── config/
 │   │   ├── config.py           # 配置加载
 │   │   └── logging_config.py   # 日志配置
@@ -308,7 +333,7 @@ neural-garden/
 │   │   ├── concepts_extractor.py
 │   │   ├── concepts_relation.py # 关系抽取
 │   │   └── knowledge_graph.py  # 图构建主逻辑
-│   ├── repository/             # SQLite DAO 层（8 张表）
+│   ├── repository/             # SQLite DAO 层（11 张表）
 │   │   ├── create_table.py     # 表初始化
 │   │   ├── documents.py        # 文档 CRUD
 │   │   ├── document_chunks.py  # 分块 CRUD（含级联删除）
@@ -316,17 +341,23 @@ neural-garden/
 │   │   ├── document_chunk_concepts.py
 │   │   ├── concept_relations.py
 │   │   ├── relation_evidence.py
-│   │   └── insights.py         # Insight CRUD（新增）
+│   │   ├── insights.py         # Insight CRUD
+│   │   ├── search_sessions.py  # 搜索会话 CRUD
+│   │   ├── search_results.py   # 搜索结果 CRUD
+│   │   └── feedback_events.py  # 反馈事件 CRUD
 │   ├── vector_store/
 │   │   ├── save_dao.py         # 向量存储保存（knowledge/concept/insight）
 │   │   ├── query_dao.py        # 向量存储查询
 │   │   ├── delete_dao.py       # 向量存储删除
 │   │   └── reset.py            # 清空向量库
+│   ├── feedback_events_analytics/
+│   │   └── feedback_analytics.py # 反馈分析脚本
 │   └── util/
 │       ├── callDashscopellm.py # LLM 调用封装
 │       ├── getHashValue.py     # 哈希工具
 │       ├── graphStats.py       # 图统计信息
 │       ├── visualizeGraph.py   # 图可视化
+│       ├── similarity.py       # 相似度计算
 │       └── llmException.py     # LLM 异常处理
 ├── data/
 │   ├── pilot/                  # 原始知识笔记（Markdown）
@@ -335,15 +366,16 @@ neural-garden/
 │   ├── test_core_modules.py    # 核心模块测试（splitter/hash/similarity）
 │   ├── test_repository.py      # repository 层测试（12 个测试）
 │   ├── test_insights.py        # Insight 模块测试（6 个测试）
+│   ├── test_feedback.py        # Feedback 模块测试（10 个测试）
 │   └── test_vector_store.py    # ChromaDB 测试（8 个测试）
 └── tutorials/                  # 教程文档（不提交到仓库）
 ```
 
 **架构说明**：
-- **SQLite**（8 张生产表）：documents/document_chunks/document_chunk_knowledge_units/document_chunk_concepts/concept_relations/relation_evidence/insights
+- **SQLite**（11 张生产表）：documents/document_chunks/document_chunk_knowledge_units/document_chunk_concepts/concept_relations/relation_evidence/insights/search_sessions/search_results/feedback_events
 - **ChromaDB**（3 个 collection）：knowledge/concept/insight
 - **NetworkX**（内存图）：MultiDiGraph（支持多边）
-- **双层存储**：SQLite（元数据/关系/溯源）+ ChromaDB（Embedding/相似度检索）
+- **测试覆盖**：51 个单元测试，全部通过
 
 ---
 
@@ -361,7 +393,7 @@ chroma:
   persist_directory: "data/chroma"
   knowledge_table_name: "knowledge"
   concept_table_name: "concept"
-  insight_table_name: "insight"    # 新增
+  insight_table_name: "insight"    # Insight collection
 
 pilot_dataset:
   path: "data/pilot"
@@ -400,7 +432,7 @@ index_directory(dir_path)
 
 # 命令行
 python -m src.indexer           # 增量更新
-python -m src.indexer --resetDB # 清空后重新索引
+python -m src.indexer --resetAllDB # 清空后重新索引
 ```
 
 ### src/search.py
@@ -436,13 +468,22 @@ python src/insight.py \
 
 **relation_concepts 优先级**：用户输入 > chunk 概念 > document 概念 > LLM 自动提取
 
+### src/feedback.py
+
+```python
+# CLI 方式记录反馈事件
+python src/feedback.py --session-id <session_id>
+```
+
+**事件类型**：click/dwell/copy/like/dislike
+
 ---
 
 ## 技术栈
 
 | 组件 | 技术 |
 |------|------|
-| **关系存储** | SQLite（8 张生产表：documents/document_chunks/.../insights） |
+| **关系存储** | SQLite（11 张生产表：documents/document_chunks/.../feedback_events） |
 | **向量存储** | ChromaDB（SQLite + HNSW 索引，3 个 collection：knowledge/concept/insight） |
 | **图存储** | NetworkX（内存 MultiDiGraph） |
 | **Embedding** | DashScope text-embedding-v1（768 维） |
@@ -450,6 +491,7 @@ python src/insight.py \
 | **分块工具** | LangChain + tiktoken（按 title + token 递归分割） |
 | **配置管理** | PyYAML + python-dotenv |
 | **日志系统** | Python logging（滚动文件 + 分级控制） |
+| **测试框架** | pytest（51 个测试全部通过） |
 | **语言** | Python 3.9+ |
 
 ---
@@ -470,17 +512,17 @@ Markdown → Chunk → KnowledgeUnit + Concept → ChromaDB + NetworkX → Graph
                                              Insight (SQLite + ChromaDB)
 ```
 
-### V3：SQLite + ChromaDB 双层架构（Lesson 06-07 + Insight）
+### V3：SQLite + ChromaDB 双层架构（Lesson 06-07）
 
 ```
                     ┌──────────────┐
-Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
-                    │  (8 张表)     │
+Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源 (11 张表)
+                    │  (11 张表)    │
                     └──────┬───────┘
                            ↓
                     ┌──────────────┐
-                    │  ChromaDB    │ → Embedding/相似度检索
-                    │  (3 个 Collection) │
+                    │  ChromaDB    │ → Embedding/相似度检索 (3 个 collection)
+                    │  (3 个 collection) │
                     └──────────────┘
 ```
 
@@ -498,17 +540,18 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 - **基于文件名的稳定 ID**：同一文件修改时 ID 不变，支持更新而非新增
 - **内容哈希检测**：通过 `content_hash` 判断内容是否变化，未变化则跳过
 - **节省成本**：避免重复调用 LLM 和 Embedding API
-- **三种状态**：skip（未变化）/ del（删除）/ copy（复制）/ new（新增）
+- **四种状态**：skip（未变化）/ del（删除）/ copy（复制）/ new（新增）
 
 ### 生产级设计
 
 - **Pydantic 验证**：LLM 输出经过严格验证（字段类型、长度、有效性）
 - **防幻觉 Prompt**：明确要求"不得根据常识补充文档没有的信息"
 - **日志系统**：生产级日志配置（控制台 + 滚动文件 + 错误日志）
-- **命令行参数**：支持 `--resetDB` 按需清空向量库
+- **命令行参数**：支持 `--resetAllDB` 按需清空向量库
 - **重试机制**：API 调用失败自动重试
 - **数据完整性**：文档更新时自动清理旧数据，相同内容直接复制 ID（避免重复处理）
-- **Insight 生命周期**：文档删除时，关联的 Insight 标记为 offline（不删除）
+- **Insight 生命周期**：文档删除时，关联的 Insight 标记为 offline（不删除，保留用户数据）
+- **外键约束**：SQLite 开启 `PRAGMA foreign_keys = ON`，保证数据一致性
 
 ### 知识图谱
 
@@ -517,9 +560,16 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 - **可视化**：自动生成概念图 PNG
 - **统计信息**：节点数、边数、连通分量等
 
+### 反馈闭环
+
+- **搜索会话记录**：`search_sessions` 表（query, result_count, created_at）
+- **搜索结果记录**：`search_results` 表（session_id, doc_id, rank, score, retrieval_type, source_type）
+- **用户行为记录**：`feedback_events` 表（session_id, event_type, doc_id, rank, dwell_time）
+- **分析脚本**：`feedback_analytics.py`（热门搜索/热门文档/无结果查询）
+
 ### 测试覆盖
 
-- **41 个单元测试**：repository 层（12 个）+ insights 模块（6 个）+ vector_store（8 个）+ core modules（16 个）
+- **51 个单元测试**：repository 层（12 个）+ insights 模块（6 个）+ feedback 模块（10 个）+ vector_store（8 个）+ core modules（16 个）
 - **内存数据库测试**：使用 SQLite :memory: 和临时 ChromaDB 目录
 - **CI 就绪**：`pytest tests/ -v` 一键运行
 
@@ -534,10 +584,12 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 | Lesson 01 | 5 分钟跑起来 | 2026-07-19 | ✅ 完成 |
 | Lesson 02 | 知识单元提取 | 2026-07-26 | ✅ 完成 |
 | Lesson 03 | 向量搜索入门 | 2026-08-03 | ✅ 完成 |
-| Lesson 04 | 概念图构建 | 2026-08-05 | ✅ 完成 |
-| Lesson 05 | Insight 记录 | 2026-08-11 | ✅ 完成 |
+| Lesson 04 | 概念图构建 | 2026-08-05 | ✅ 完成 (提前) |
+| Lesson 05 | Insight 记录 | 2026-08-11 | ✅ 完成 (补) |
 | Lesson 06 | 反馈闭环 | 2026-08-23 | ✅ 完成 |
-| Lesson 07 | 自动化部署 | 待定 | ⏳ 待推送 |
+| Lesson 07 | 数据完整性与反馈闭环 | 2026-08-30 | ⏳ 待推送 |
+
+**课程完成率**：6/7 (86%)，最后一课 8/30 推送后 100% 完成
 
 ---
 
@@ -562,7 +614,7 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 
 1. 首次运行：全量索引，记录每个文件的 `content_hash`
 2. 后续运行：比较文件名哈希 ID 对应的 `content_hash`
-3. 相同 → 跳过；不同 → 更新
+3. 相同 → skip；不同 → del + new；相同内容不同文件 → copy
 
 ### Q: 概念归一化如何工作？
 
@@ -576,6 +628,13 @@ Markdown → Chunk →  │   SQLite     │ → 元数据/关系/溯源
 2. 存入 SQLite（结构化数据）+ ChromaDB（向量检索）
 3. 搜索时联合查询 knowledge 和 insight 两个 collection
 4. 文档删除时，关联的 Insight 标记为 offline（不删除，保留用户数据）
+
+### Q: Feedback 如何工作？
+
+1. 每次搜索自动创建 `search_session` 记录查询
+2. 搜索结果保存到 `search_results` 表
+3. 用户点击时调用 `feedback.py` 记录点击事件
+4. 定期运行 `feedback_analytics.py` 分析热门查询和文档
 
 ---
 
