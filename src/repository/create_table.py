@@ -222,7 +222,6 @@ def create_table_init_for_memory(conn):
 
 def drop_table():
     with get_sqlite_connection() as conn:
-
         sql = """
             DROP TABLE IF EXISTS relation_evidence;
             DROP TABLE IF EXISTS concept_relations;

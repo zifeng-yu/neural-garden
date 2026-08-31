@@ -1,10 +1,10 @@
 import logging
 import os
 
-import src.config.logging_config as logging_config
 from src.config.config import (
     PILOT_DATASET_PATH,
 )
+from src.config.logging_config import setup_logging
 from src.document.splitter import markdown_spilt
 from src.embedding.getEmbedding import get_embedding
 from src.get_sqlite_connection import get_sqlite_connection
@@ -22,15 +22,13 @@ from src.repository.concept_relations import (
 from src.repository.document_chunk_concepts import (
     copy_documents_chunk_concepts,
     query_by_chunk_id,
+    query_by_not_document_id_in_normalized_concepts,
 )
 from src.repository.document_chunk_concepts import (
     delete_by_document_id as delete_by_document_id_chunk_concepts,
 )
 from src.repository.document_chunk_concepts import (
     query_by_document_id as query_by_document_id_chunk_concetps,
-)
-from src.repository.document_chunk_concepts import (
-    query_by_not_document_id_and_in_normalized_concepts as query_by_not_document_id_and_in_normalized_concepts_chunk_concepts,
 )
 from src.repository.document_chunk_knowledge_units import (
     copy_documents_chunk_knowledge_unit,
@@ -64,7 +62,7 @@ from src.repository.documents import (
 )
 from src.repository.documents import delete_by_id as delete_by_id_documents
 from src.repository.documents import query_by_id as query_by_id_document
-from src.repository.init import sqlite_table_init
+from src.repository.init import sqlite_table_create_if_not, sqlite_table_init
 from src.repository.insights import mark_source_status_offline_by_document_id
 from src.repository.insights import query_by_id as query_by_id_insights
 from src.repository.relation_evidence import (
@@ -86,7 +84,7 @@ from src.vector_store.delete_dao import (
     delete_by_id_knowledge as delete_by_id_knowledge_chroma,
 )
 from src.vector_store.delete_dao import (
-    delete_by_normalized_concet_hash_concept as delete_by_normalized_concet_hash_concept_chroma,
+    delete_by_normalized_concept_hash as delete_by_normalized_concept_hash_chroma,
 )
 from src.vector_store.query_dao import (
     log_concept_collection_size,
@@ -104,6 +102,10 @@ from src.vector_store.save_dao import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def main() -> None:
+    setup_logging()
 
 
 def load_document(file_path: str) -> str:
@@ -140,7 +142,7 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
             x.normalized_concept for x in documents_concepts_do_list
         ]
         other_document_concepts_do_list = (
-            query_by_not_document_id_and_in_normalized_concepts_chunk_concepts(
+            query_by_not_document_id_in_normalized_concepts(
                 document_id, documents_concepts_do_normalized_concetps_list
             )
         )
@@ -177,7 +179,7 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
 
         delete_by_id_knowledge_chroma(know_unit_do_ids)
 
-        delete_by_normalized_concet_hash_concept_chroma(
+        delete_by_normalized_concept_hash_chroma(
             need_delete_normalized_concept_hash_list
         )
         insight_ids = mark_source_status_offline_by_document_id(document_id)
@@ -209,10 +211,10 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
                 new_know_ids = copy_documents_chunk_knowledge_unit(
                     conn, content_result.id, new_doucument_id, old_new_chunk_id_map
                 )
-                new_chunk_concepts_ids = copy_documents_chunk_concepts(
+                copy_documents_chunk_concepts(
                     conn, content_result.id, new_doucument_id, old_new_chunk_id_map
                 )
-                new_relation_evidence_ids = copy_relation_evidence(
+                copy_relation_evidence(
                     conn, content_result.id, new_doucument_id, old_new_chunk_id_map
                 )
         except Exception:
@@ -222,10 +224,13 @@ def process_file(content_hash: str, file_name_hash: str, source: str) -> str:
         new_know_do_list = query_by_ids_knowunit(new_know_ids)
         if new_know_do_list:
             for new_know_do in new_know_do_list:
+                embedding_result = get_embedding(new_know_do.embedding_text)
+                if not embedding_result:
+                    continue
                 save_knowlege(
                     KnowledgeUnitDTO(
                         str(new_know_do.id),
-                        get_embedding(new_know_do.embedding_text),
+                        embedding_result,
                         new_know_do.embedding_text,
                         KnowledgeUnitMetadata(
                             source,
@@ -303,7 +308,7 @@ def index_file(file_path: str):
     logger.info(f"内部归一后 数据 {[a.concepts for a in insert_chunks]}")
     # 文档外部概念聚聚（归一）
     normalized_concept(insert_chunks)
-    logger.info(f"外部归一后 数据 {insert_chunks}")
+    logger.info(f"外部归一后 数据 {[a.concepts for a in insert_chunks]}")
 
     save_db_result = save_documents_domain(
         InsertDocumentDomain(insert_doc, insert_chunks)
@@ -311,16 +316,19 @@ def index_file(file_path: str):
 
     logger.info(f"save_db_result {save_db_result}")
 
-    # 保存knowledgeUnit 准备con
+    # 保存knowledgeUnit chromaDB
     if "knowledge_unit_ids" in save_db_result:
         knowledgeUnit_ids = save_db_result["knowledge_unit_ids"]
         knowledgeUnit_list = query_by_ids_knowunit(knowledgeUnit_ids)
         if knowledgeUnit_list:
             for unit in knowledgeUnit_list:
+                get_embedding_result = get_embedding(unit.embedding_text)
+                if not get_embedding_result:
+                    continue
                 save_knowlege(
                     KnowledgeUnitDTO(
                         str(unit.id),
-                        get_embedding(unit.embedding_text),
+                        get_embedding_result,
                         unit.embedding_text,
                         KnowledgeUnitMetadata(
                             source,
@@ -331,7 +339,7 @@ def index_file(file_path: str):
                         ),
                     )
                 )
-    # 保存 concept
+    # 保存 concept chromaDB
     if "document_id" in save_db_result:
         documentDO = query_by_id_document(save_db_result["document_id"])
         if documentDO:
@@ -339,10 +347,15 @@ def index_file(file_path: str):
                 documentDO.id
             )
             for document_chunk_concepts_do in document_chunk_concepts_dolist:
+                get_embedding_result = get_embedding(
+                    document_chunk_concepts_do.normalized_concept
+                )
+                if not get_embedding_result:
+                    continue
                 save_concept(
                     ConceptDTO(
                         document_chunk_concepts_do.normalized_concept_hash,
-                        get_embedding(document_chunk_concepts_do.normalized_concept),
+                        get_embedding_result,
                         document_chunk_concepts_do.normalized_concept,
                     )
                 )
@@ -362,6 +375,8 @@ def index_file(file_path: str):
                     chunk_concept_relations = extract_relations_from_text(
                         chunk_content, concepts
                     )
+                    if chunk_concept_relations is None:
+                        continue
                     for (
                         concept_source,
                         realtion,
@@ -403,12 +418,13 @@ def index_directory(dir_path: str):
         file_path = os.path.join(dir_path, filename)
         index_file(file_path)
 
-    logger.info(f"\n✅ 批量索引完成，共 {len(md_files)} 个文件")
+    logger.info(f"✅ 批量索引完成，共 {len(md_files)} 个文件")
     log_concept_collection_size()
     log_knowledgeUnit_collection_size()
 
 
 if __name__ == "__main__":
+    main()
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -419,6 +435,8 @@ if __name__ == "__main__":
         resetDB_CONCEPT()
         resetDB_INSIGHT()
         sqlite_table_init()
+    else:
+        sqlite_table_create_if_not()
 
     # 配置路径
     base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -432,4 +450,4 @@ if __name__ == "__main__":
 
     logger.info("\n" + "=" * 40)
     logger.info("💡 提示：运行以下命令搜索知识：")
-    logger.info(f"   python -m src.search <查询内容>")
+    logger.info("   python -m src.search <查询内容>")

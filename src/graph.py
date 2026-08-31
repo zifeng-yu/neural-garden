@@ -10,7 +10,7 @@ from typing import Any
 
 import networkx as nx
 
-import src.config.logging_config as logging_config
+from src.config.logging_config import setup_logging
 from src.knowledgeGraph.knowledge_graph import (
     NodeAttribute,
     NodeType,
@@ -21,6 +21,10 @@ from src.util.graphStats import get_DiGraph_stats
 from src.util.visualizeGraph import visualize_graph
 
 logger = logging.getLogger(__name__)
+
+
+def main() -> None:
+    setup_logging()
 
 
 def build_graph() -> nx.MultiDiGraph | None:
@@ -43,6 +47,8 @@ def search(G: nx.MultiDiGraph, concept: str, depth: int) -> list[dict[str, Any]]
 
 
 if __name__ == "__main__":
+    main()
+
     knowledge_graph = build_graph()
     if knowledge_graph is not None:
         graph_png(knowledge_graph)
@@ -61,9 +67,7 @@ if __name__ == "__main__":
                 count += 1
         logger.info(f"概念相连 数量 {count}")
 
-        from src.util.getHashValue import get_hash_value as hash
-
-        titles = [1, 2, 4, 5, 6, 7]
+        titles = [1, 2, 3, 4, 5, 6]
         titles_concept_map = {}
         for title in titles:
             doc_hava_concepts = list(knowledge_graph.successors(title))

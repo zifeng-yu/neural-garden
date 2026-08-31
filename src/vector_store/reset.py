@@ -3,7 +3,6 @@ import logging
 import chromadb
 import chromadb.errors
 
-import src.config.logging_config
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
     CHROMA_INSIGHT_TABLE_NAME,

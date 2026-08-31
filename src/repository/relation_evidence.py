@@ -30,7 +30,6 @@ def insert_relation_evidence(
     evidence_role: EvidenceRoleEnum,
 ):
     with get_sqlite_connection() as conn:
-
         cursor = conn.execute(
             """
             INSERT INTO relation_evidence

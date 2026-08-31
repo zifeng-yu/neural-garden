@@ -12,7 +12,7 @@ def delete_by_id_knowledge(ids: list[str]):
     collection.delete(ids=ids)
 
 
-def delete_by_normalized_concet_hash_concept(ids: list[str]):
+def delete_by_normalized_concept_hash(ids: list[str]):
     if not ids:
         return
     collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)

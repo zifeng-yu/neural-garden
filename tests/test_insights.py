@@ -12,7 +12,6 @@ import os
 import sqlite3
 import sys
 import unittest
-from datetime import datetime
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -65,15 +64,16 @@ class TestInsightsRepository(unittest.TestCase):
         # 查询
         result = _query_by_id(self.conn, insight_id)
         self.assertIsNotNone(result)
-        self.assertEqual(result.title, "测试洞察")
-        self.assertEqual(result.content, "这是测试内容")
-        self.assertEqual(result.action_items, ["行动 1", "行动 2"])
-        self.assertEqual(result.relation_concepts, ["负利率", "货币政策"])
-        self.assertEqual(result.source_type, SourceTypeEnum.USER)
-        self.assertEqual(result.source_status, SourceStatusEnum.ONLINE)
-        self.assertIsNone(result.document_id)
-        self.assertIsNone(result.document_chunk_id)
-        self.assertEqual(result.embedding_text, embedding_text)
+        if result is not None:
+            self.assertEqual(result.title, "测试洞察")
+            self.assertEqual(result.content, "这是测试内容")
+            self.assertEqual(result.action_items, ["行动 1", "行动 2"])
+            self.assertEqual(result.relation_concepts, ["负利率", "货币政策"])
+            self.assertEqual(result.source_type, SourceTypeEnum.USER)
+            self.assertEqual(result.source_status, SourceStatusEnum.ONLINE)
+            self.assertIsNone(result.document_id)
+            self.assertIsNone(result.document_chunk_id)
+            self.assertEqual(result.embedding_text, embedding_text)
 
     def test_save_insight_with_document_source(self):
         """测试保存来自文档的 Insight"""
@@ -91,12 +91,13 @@ class TestInsightsRepository(unittest.TestCase):
             embedding_text=embedding_text,
         )
 
-        result = _query_by_id(self.conn, insight_id)
+        result: InsightsDO | None = _query_by_id(self.conn, insight_id)
         self.assertIsNotNone(result)
-        self.assertEqual(result.source_type, SourceTypeEnum.DOCUMENT)
-        self.assertEqual(result.document_id, 123)
-        self.assertEqual(result.document_chunk_id, 456)
-        self.assertEqual(result.embedding_text, embedding_text)
+        if result is not None:
+            self.assertEqual(result.source_type, SourceTypeEnum.DOCUMENT)
+            self.assertEqual(result.document_id, 123)
+            self.assertEqual(result.document_chunk_id, 456)
+            self.assertEqual(result.embedding_text, embedding_text)
 
     def test_mark_source_status_offline(self):
         """测试标记 Insight 为 offline"""
@@ -149,14 +150,24 @@ class TestInsightsRepository(unittest.TestCase):
         result1 = _query_by_id(self.conn, id1)
         result2 = _query_by_id(self.conn, id2)
         result3 = _query_by_id(self.conn, id3)
-
-        self.assertEqual(result1.source_status, SourceStatusEnum.OFFLINE)
-        self.assertEqual(result2.source_status, SourceStatusEnum.OFFLINE)
-        self.assertEqual(result3.source_status, SourceStatusEnum.ONLINE)  # 不应受影响
+        self.assertIsNotNone(result1)
+        self.assertIsNotNone(result2)
+        self.assertIsNotNone(result3)
+        if result1 is not None:
+            self.assertEqual(result1.source_status, SourceStatusEnum.OFFLINE)
+        if result2 is not None:
+            self.assertEqual(result2.source_status, SourceStatusEnum.OFFLINE)
+        if result3 is not None:
+            self.assertEqual(
+                result3.source_status, SourceStatusEnum.ONLINE
+            )  # 不应受影响
 
     def test_json_serialization(self):
         """测试 JSON 序列化（中文）"""
-        embedding_text = "中文标题。中文内容。行动项：行动 1, 行动 2 中文。关联概念：负利率，货币政策"
+        embedding_text = """
+                        中文标题。中文内容。行动项：行动 1, 行动 2 中文。
+                        关联概念：负利率，货币政策
+                        """
         insight_id = _save_insights(
             self.conn,
             title="中文标题",
@@ -170,9 +181,11 @@ class TestInsightsRepository(unittest.TestCase):
         )
 
         result = _query_by_id(self.conn, insight_id)
-        self.assertEqual(result.action_items, ["行动 1", "行动 2 中文"])
-        self.assertEqual(result.relation_concepts, ["负利率", "货币政策"])
-        self.assertEqual(result.embedding_text, embedding_text)
+        self.assertFalse(result is None)
+        if result is not None:
+            self.assertEqual(result.action_items, ["行动 1", "行动 2 中文"])
+            self.assertEqual(result.relation_concepts, ["负利率", "货币政策"])
+            self.assertEqual(result.embedding_text, embedding_text)
 
 
 class TestInsightBusinessLogic(unittest.TestCase):
@@ -205,7 +218,9 @@ class TestInsightBusinessLogic(unittest.TestCase):
         )
 
         result = _query_by_id(self.conn, insight_id)
-        self.assertEqual(result.relation_concepts, ["用户概念 1", "用户概念 2"])
+        self.assertIsNotNone(result)
+        if result is not None:
+            self.assertEqual(result.relation_concepts, ["用户概念 1", "用户概念 2"])
 
 
 if __name__ == "__main__":

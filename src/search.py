@@ -4,13 +4,11 @@ Lesson 03: 向量搜索入门（增强版）
 """
 
 import logging
-import os
 import uuid
+from dataclasses import dataclass
 
-import chromadb
-
-import src.config.logging_config as logging_config
-from src.config.config import CHROMA_INSIGHT_TABLE_NAME, CHROMA_KNOWLEDGE_TABLE_NAME
+from src.config.config import CHROMA_KNOWLEDGE_TABLE_NAME
+from src.config.logging_config import setup_logging
 from src.embedding.getEmbedding import get_embedding
 from src.get_chroma_collection import get_collection
 from src.repository.search_results import (
@@ -26,7 +24,24 @@ from src.repository.search_sessions import (
 logger = logging.getLogger(__name__)
 
 
-def search(query: str, top_k: int = 3, show_score: bool = True):
+def main() -> None:
+    setup_logging()
+
+
+@dataclass
+class SearchResult:
+    content: str
+    document_id: int | None
+    document_chunk_id: int | None
+    score: float
+    rank: int
+    source_type: str
+    retrieval_type: str
+
+
+def search(
+    query: str, top_k: int = 3, show_score: bool = True, save_session: bool = True
+) -> list[SearchResult] | None:
     """
     向量搜索入口（增强版）
 
@@ -39,79 +54,39 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
     embedding = get_embedding(query)
     if embedding is None:
         logger.error("❌ Embedding 生成失败")
-        return
+        return None
 
     # 模拟创建session_id
     session_id = uuid.uuid4().hex
 
-    save_search_sessions(session_id, query, 0)
+    if save_session:
+        save_search_sessions(session_id, query, 0)
 
     collection_knowledge = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
     logger.info(f"knowledge表集合大小 {collection_knowledge.count()}")
 
     results_knowledge = collection_knowledge.query(
-        query_embeddings=[embedding],
+        query_embeddings=embedding,
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
     # 4. 格式化输出（带相似度）
     log_results(results_knowledge, query, show_score=show_score)
-    results_insight = None
-    try:
-        collection_insight = get_collection(CHROMA_INSIGHT_TABLE_NAME)
-        logger.info(f"insight表集合大小 {collection_insight.count()}")
-        results_insight = collection_insight.query(
-            query_embeddings=[embedding],
-            n_results=top_k,
-            where={"source_status": {"$eq": "online"}},
-            include=["documents", "metadatas", "distances"],
-        )
-        log_results(results_insight, query, show_score=show_score)
-    except Exception:
-        logger.exception("chroma insight query error")
 
-    # 简单rank 可以说先demo 先排insight 后排knowledage
+    search_result = []
     rank = 1
-    if (
-        results_insight
-        and results_insight["documents"]
-        and results_insight["metadatas"]
-        and results_insight["distances"]
-    ):
-        for id, doc, meta, distance in zip(
-            results_insight["ids"][0],
-            results_insight["documents"][0],
-            results_insight["metadatas"][0],
-            results_insight["distances"][0],
-        ):
-            document_id = meta.get("document_id")
-            if not isinstance(document_id, int):
-                document_id = None
-            document_chunk_id = meta.get("document_chunk_id")
-            if not isinstance(document_chunk_id, int):
-                document_chunk_id = None
-            save_search_results(
-                session_id,
-                document_id,
-                document_chunk_id,
-                rank,
-                1 - distance,
-                distance,
-                RetrievalTypeEnum.VECTOR,
-                SourceTypeEnum.CHROMA_INSIGHT,
-            )
-            rank += 1
+
     if (
         results_knowledge
         and results_knowledge["documents"]
         and results_knowledge["metadatas"]
         and results_knowledge["distances"]
     ):
-        for id, doc, meta, distance in zip(
-            results_knowledge["ids"][0],
+        for doc, meta, distance in zip(
             results_knowledge["documents"][0],
             results_knowledge["metadatas"][0],
             results_knowledge["distances"][0],
+            strict=True,
         ):
             document_id = meta.get("document_id")
             if not isinstance(document_id, int):
@@ -119,18 +94,34 @@ def search(query: str, top_k: int = 3, show_score: bool = True):
             document_chunk_id = meta.get("document_chunk_id")
             if not isinstance(document_chunk_id, int):
                 document_chunk_id = None
-            save_search_results(
-                session_id,
-                document_id,
-                document_chunk_id,
-                rank,
-                1 - distance,
-                distance,
-                RetrievalTypeEnum.VECTOR,
-                SourceTypeEnum.CHROMA_KNOWLEDGE,
+            if save_session:
+                save_search_results(
+                    session_id,
+                    document_id,
+                    document_chunk_id,
+                    rank,
+                    1 - distance,
+                    distance,
+                    RetrievalTypeEnum.VECTOR,
+                    SourceTypeEnum.CHROMA_KNOWLEDGE,
+                )
+            search_result.append(
+                SearchResult(
+                    doc,
+                    document_id,
+                    document_chunk_id,
+                    1 - distance,
+                    rank,
+                    SourceTypeEnum.CHROMA_KNOWLEDGE.value,
+                    RetrievalTypeEnum.VECTOR.value,
+                )
             )
             rank += 1
-    update_result_count_by_session_id(session_id, rank - 1)
+
+    if save_session:
+        update_result_count_by_session_id(session_id, rank - 1)
+
+    return search_result
 
 
 def log_results(results, query, show_score: bool = True):
@@ -153,6 +144,7 @@ def log_results(results, query, show_score: bool = True):
                 results["documents"][0],
                 results["metadatas"][0],
                 results["distances"][0],
+                strict=True,
             ),
             1,
         ):
@@ -188,10 +180,7 @@ def search_with_filter(
         filter_value: 过滤值
         top_k: 返回结果数量
     """
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    persist_dir = os.path.join(base_dir, PERSIST_DIRECTORY)
-    client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    collection = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
 
     embedding = get_embedding(query)
     if embedding is None:
@@ -200,7 +189,7 @@ def search_with_filter(
 
     # Chroma 的 where 过滤语法
     results = collection.query(
-        query_embeddings=[embedding],
+        query_embeddings=embedding,
         n_results=top_k,
         where={filter_field: filter_value},
         include=["documents", "metadatas", "distances"],
@@ -222,10 +211,7 @@ def search_by_threshold(query: str, threshold: float = 0.7, top_k: int = 20):
     Returns:
         只返回相似度 > threshold 的结果
     """
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    persist_dir = os.path.join(base_dir, PERSIST_DIRECTORY)
-    client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    collection = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
 
     embedding = get_embedding(query)
     if embedding is None:
@@ -233,26 +219,36 @@ def search_by_threshold(query: str, threshold: float = 0.7, top_k: int = 20):
         return
 
     results = collection.query(
-        query_embeddings=[embedding],
+        query_embeddings=embedding,
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
+    if not results["documents"] or not results["metadatas"] or not results["distances"]:
+        logger.info(f"查询结果 数据可能不足 {results}")
+        return
 
     # 过滤：只保留相似度 > threshold 的结果
+    filter_threshold_ids = []
     filter_threshold_documents = []
     filter_threshold_metadatas = []
     filter_threshold_distances = []
 
-    for doc, meta, distance in zip(
-        results["documents"][0], results["metadatas"][0], results["distances"][0]
+    for id, doc, meta, distance in zip(
+        results["ids"][0],
+        results["documents"][0],
+        results["metadatas"][0],
+        results["distances"][0],
+        strict=True,
     ):
         similarity = 1 - distance
         if similarity > threshold:
+            filter_threshold_ids.append(id)
             filter_threshold_documents.append(doc)
             filter_threshold_metadatas.append(meta)
             filter_threshold_distances.append(distance)
 
     filter_threshold_result = {
+        "ids": [filter_threshold_ids],
         "documents": [filter_threshold_documents],
         "metadatas": [filter_threshold_metadatas],
         "distances": [filter_threshold_distances],
@@ -263,6 +259,7 @@ def search_by_threshold(query: str, threshold: float = 0.7, top_k: int = 20):
 
 
 if __name__ == "__main__":
+    main()
     import sys
 
     if len(sys.argv) > 1:

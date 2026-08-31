@@ -10,7 +10,8 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO"):
     - 滚动文件(DEBUG 及以上,10MB * 10 个备份）
     - 支持按模块单独控制级别
     """
-    log_path = Path(log_dir)
+    log_path = Path(__file__).resolve().parents[2] / log_dir
+
     log_path.mkdir(parents=True, exist_ok=True)
 
     config = {
@@ -18,7 +19,10 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO"):
         "disable_existing_loggers": False,  # 保留已有 logger（很重要）
         "formatters": {
             "standard": {
-                "format": "%(asctime)s | %(levelname)-8s | %(name)s | %(filename)s:%(lineno)d | %(message)s",
+                "format": (
+                    "%(asctime)s | %(levelname)-8s | %(name)s |"
+                    " %(filename)s:%(lineno)d | %(message)s"
+                ),
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
             "simple": {
@@ -78,15 +82,3 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO"):
     }
 
     logging.config.dictConfig(config)
-
-
-setup_logging()
-
-# 方便直接测试
-# if __name__ == "__main__":
-#     setup_logging()
-#     logger = logging.getLogger(__name__)
-#     logger.debug("这是 DEBUG")
-#     logger.info("这是 INFO")
-#     logger.warning("这是 WARNING")
-#     logger.error("这是 ERROR")

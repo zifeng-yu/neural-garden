@@ -104,6 +104,7 @@ def query_by_ids(ids: list[int]) -> list[DocumentChunkKnowledgeUnits]:
             data = dict(row)
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            data["keywords"] = json.loads(data["keywords"])
             result.append(DocumentChunkKnowledgeUnits(**data))
 
         return result
@@ -124,6 +125,7 @@ def query_by_document_id(document_id: int) -> list[DocumentChunkKnowledgeUnits]:
             data = dict(row)
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            data["keywords"] = json.loads(data["keywords"])
             result.append(DocumentChunkKnowledgeUnits(**data))
 
         return result
@@ -145,6 +147,7 @@ def _query_by_document_id(
         data = dict(row)
         data["created_at"] = datetime.fromisoformat(data["created_at"])
         data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        data["keywords"] = json.loads(data["keywords"])
         result.append(DocumentChunkKnowledgeUnits(**data))
 
     return result
@@ -198,6 +201,7 @@ def query_by_title(title: str) -> list[DocumentChunkKnowledgeUnits]:
             data = dict(row)
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            data["keywords"] = json.loads(data["keywords"])
             result.append(DocumentChunkKnowledgeUnits(**data))
 
         return result

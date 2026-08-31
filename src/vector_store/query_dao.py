@@ -1,6 +1,5 @@
 import logging
 
-import src.config.logging_config as logging_config
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
     CHROMA_KNOWLEDGE_TABLE_NAME,
@@ -18,10 +17,16 @@ def get_by_id_concept(id: str) -> ConceptDTO | None:
     logger.info(f"向量搜索 概念id hash  {id} : {result}")
     if not result["ids"]:
         return None
+    embeddings = result["embeddings"]
+    if embeddings is None or len(embeddings) == 0:
+        return None
+    docs = result["documents"]
+    if docs is None or len(docs) == 0:
+        return None
     return ConceptDTO(
         id=result["ids"][0],
-        embedding=result["embeddings"][0],
-        normalized_concept=result["documents"][0],
+        embedding=list(embeddings[0]),
+        normalized_concept=docs[0],
     )
 
 
@@ -35,7 +40,7 @@ def search_by_threshold_concept(
         return []
 
     results = collection.query(
-        query_embeddings=[embedding],
+        query_embeddings=embedding,
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
@@ -47,7 +52,7 @@ def search_by_threshold_concept(
 
     if not documents or not distances:
         return []
-    for doc, distance in zip(documents[0], distances[0]):
+    for doc, distance in zip(documents[0], distances[0], strict=True):
         similarity = 1 - distance
         if similarity > threshold:
             concept_results.append(

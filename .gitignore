@@ -53,3 +53,22 @@ llm/
 
 # sqlite
 data/sqlite
+
+# 测试
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# 规划文件
+career-roadmap/
+todo.md
+todo2.md
+
+# graphPNG
+graphPNG/*.png
+
+# 临时文件
+COURSE-IMPLEMENTATION-REVIEW.md
+TODO-COURSES.md
+方案821.md

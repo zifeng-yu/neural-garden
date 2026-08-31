@@ -3,13 +3,12 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-import src.config.logging_config as logging_config
 from src.util.callDashscopellm import generate as fetchLLM
 
 logger = logging.getLogger(__name__)
 
 
-def extract_relations_from_text(text: str, concepts: list[str]) -> list[list]:
+def extract_relations_from_text(text: str, concepts: list[str]) -> list[list] | None:
     """
     从文本中提取概念之间的关系
     Args:
@@ -78,11 +77,24 @@ source概念 -> target概念
 只输出 JSON，不要输出解释。
 """
     user_prompt = f"<文本>{text}</文本>\n<概念>{concepts}</概念>"
-    return fetchLLM(
+    data = fetchLLM(
         sys_prompt_content=sys_prompt,
         user_prompt_content=user_prompt,
         response_json=True,
     )
+    logger.info(f"extract_relations_from_text return {data}")
+    if not isinstance(data, list):
+        return None
+
+    for item in data:
+        if not isinstance(item, list):
+            return None
+        if len(item) != 3:
+            return None
+        if not all(isinstance(x, str) for x in item):
+            return None
+
+    return data
 
 
 @dataclass
@@ -121,7 +133,8 @@ def extract_concept_clusters(
 8. 输入的上下文片段若有多个会用标签分开。
 9. 输出的canonical必须严格来自候选概念。
 10. 如果两个概念存在因果关系、包含关系、领域关联关系，但不是同一个实体，不合并。
-11. 不允许将父概念和子概念合并。例如：算法 ≠ 排序算法 数据结构 ≠ HashSet 复杂度 ≠ 时间复杂度 复杂度 ≠ 空间复杂度
+11. 不允许将父概念和子概念合并。
+例如：算法 ≠ 排序算法 数据结构 ≠ HashSet 复杂度 ≠ 时间复杂度 复杂度 ≠ 空间复杂度
 12. 判断是否同一实体，不是是否属于同一主题。
 
 提供的数据格式比如这样：

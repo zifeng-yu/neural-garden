@@ -10,12 +10,13 @@ DashScope LLM 调用封装（带重试机制）
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import dashscope
 from dashscope import MultiModalConversation
+from dashscope.api_entities.dashscope_response import MultiModalConversationResponse
 
-from src.config.config import API_KEY, LLM_MODEL
+from src.config.config import LLM_MODEL, get_dashscope_api_key
 from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
@@ -126,7 +127,7 @@ def generate(
     ]
 
     # 配置 API Key
-    dashscope.api_key = API_KEY
+    dashscope.api_key = get_dashscope_api_key()
 
     # 构建请求参数
     params = {
@@ -148,12 +149,13 @@ def generate(
 
     # 调用 API
     try:
-        response = MultiModalConversation.call(**params)
+        response = cast(
+            MultiModalConversationResponse, MultiModalConversation.call(**params)
+        )
     except Exception as e:
         # 网络层异常（连接错误、超时等）
         logger.warning(f"[LLM 调用] 网络层异常，将重试：{type(e).__name__}: {e}")
         raise LLMException(f"Network error: {e}") from e
-
     # 检查响应状态
     if response.status_code != 200:
         error_msg = f"{response.status_code}: {response.message}"
@@ -161,13 +163,15 @@ def generate(
         if _should_retry_status(response.status_code):
             # 可重试错误（5xx, 429）
             logger.warning(
-                f"[LLM 调用] 服务端错误 ({response.status_code})，将重试：{response.message}"
+                f"[LLM 调用] 服务端错误 ({response.status_code})，"
+                f"将重试：{response.message}"
             )
             raise LLMException(error_msg)
         else:
             # 不可重试错误（4xx 客户端错误）- 直接抛出，不进入重试循环
             logger.error(
-                f"[LLM 调用] 客户端错误 ({response.status_code})，不重试：{response.message}"
+                f"[LLM 调用] 客户端错误 ({response.status_code})，"
+                f"不重试：{response.message}"
             )
             # 使用 RuntimeError 而不是 LLMException，避免被 retry 装饰器捕获
             raise RuntimeError(
@@ -176,7 +180,11 @@ def generate(
 
     # 解析响应
     try:
-        text = response.output.choices[0].message.content[0]["text"]
+        llm_result_content: list[dict[str, Any]] = cast(
+            list[dict[str, Any]],
+            response.output.choices[0].message.content,
+        )
+        text: str = llm_result_content[0]["text"]
     except (IndexError, KeyError, TypeError) as e:
         error_msg = f"响应格式异常：{response.output}"
         logger.error(f"[LLM 调用] {error_msg}")
@@ -210,53 +218,3 @@ def generate(
             raise LLMException(error_msg) from e
 
     return data
-
-
-def generate_streaming(
-    sys_prompt_content: str,
-    user_prompt_content: str,
-    temperature: float = 0.1,
-    enable_thinking: bool = False,
-    timeout: Optional[float] = None,
-):
-    """
-    流式调用 LLM（不支持重试，因为流式无法重放）
-
-    Args:
-        sys_prompt_content: 系统提示词
-        user_prompt_content: 用户提示词
-        temperature: 温度参数
-        enable_thinking: 是否启用思考模式
-        timeout: 超时秒数
-
-    Yields:
-        增量文本片段
-
-    注意:
-        流式调用不支持重试，因为无法重放已消耗的流
-    """
-    prompt = [
-        {"role": "system", "content": sys_prompt_content},
-        {"role": "user", "content": user_prompt_content},
-    ]
-
-    dashscope.api_key = API_KEY
-
-    params = {
-        "model": LLM_MODEL,
-        "messages": prompt,
-        "temperature": temperature,
-        "enable_thinking": enable_thinking,
-        "stream": True,
-    }
-
-    if timeout is not None:
-        params["timeout"] = timeout
-
-    response = MultiModalConversation.call(**params)
-
-    for chunk in response:
-        if chunk.output.choices:
-            content = chunk.output.choices[0].message.content
-            if content:
-                yield content

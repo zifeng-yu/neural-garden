@@ -12,9 +12,6 @@
 import logging
 import time
 from functools import wraps
-from typing import Optional
-
-import src.config.logging_config as logging_config
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +92,8 @@ def retry(
                         # 最后一次重试仍失败
                         logger.error(
                             f"[重试] {func.__name__} 失败，已重试 {times} 次，"
-                            f"总耗时 {total_time:.2f}s，最终错误：{type(e).__name__}: {e}"
+                            f"总耗时 {total_time:.2f}s,"
+                            f"最终错误：{type(e).__name__}: {e}"
                         )
                         raise
                     else:

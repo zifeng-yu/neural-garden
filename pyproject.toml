@@ -1,0 +1,45 @@
+[project]
+name = "neural-garden"
+version = "0.1.0"
+requires-python = ">=3.12.10"
+dependencies = [
+    "chromadb>=1.5.9",
+    "dashscope>=1.27.2",
+    "langchain-text-splitters>=1.1.2",
+    "matplotlib>=3.11.1",
+    "networkx>=3.6.1",
+    "numpy>=2.5.2",
+    "pydantic>=2.13.4",
+    "python-dotenv>=1.2.3",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.5",
+    "types-networkx>=3.6.1.20260728",
+    "types-pyyaml>=6.0.12.20260815",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle error
+    "F",   # pyflakes
+    "I",   # import 排序
+    "B",   # bugbear
+]
+
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true

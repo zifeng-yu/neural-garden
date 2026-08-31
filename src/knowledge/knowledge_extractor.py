@@ -1,13 +1,14 @@
 # 请求大模型，获得知识单元
 import json
 import logging
+from typing import Any, cast
 
 import dashscope
 from dashscope import MultiModalConversation
+from dashscope.api_entities.dashscope_response import MultiModalConversationResponse
 from pydantic import BaseModel, Field
 
-import src.config.logging_config as logging_config
-from src.config.config import API_KEY, LLM_MODEL
+from src.config.config import LLM_MODEL, get_dashscope_api_key
 from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
@@ -50,19 +51,30 @@ def extractor_by_llm(content: str) -> Response_extractor:
     user_prompt = {"role": "user", "content": f"提取下面文章的知识结构:{content}"}
     prompt.append(system_prompt)
     prompt.append(user_prompt)
-    dashscope.api_key = API_KEY
-    response = MultiModalConversation.call(
-        model=LLM_MODEL,
-        messages=prompt,
-        temperature=0.1,
-        enable_thinking=False,
-        response_format={"type": "json_object"},
+    dashscope.api_key = get_dashscope_api_key()
+    response = cast(
+        MultiModalConversationResponse,
+        MultiModalConversation.call(
+            model=LLM_MODEL,
+            messages=prompt,
+            temperature=0.1,
+            enable_thinking=False,
+            response_format={"type": "json_object"},
+            stream=False,
+        ),
     )
     if response.status_code != 200:
         raise LLMException(f"{response.status_code}:{response.message}")
-    logger.info(response.output.choices[0].message.content[0]["text"])
-    data = json.loads(response.output.choices[0].message.content[0]["text"])
+    llm_result_content: list[dict[str, Any]] = cast(
+        list[dict[str, Any]],
+        response.output.choices[0].message.content,
+    )
+    text: str = llm_result_content[0]["text"]
+    logger.info(text)
+    data = json.loads(text)
     if data["title"] == "无效文章输入" or data["summary"] == "无效文章输入":
-        raise ContentNotExtrator(f"无效文章提炼： {data} ，文章内容 {content}")
+        raise ContentNotExtrator(
+            f"无效文章提炼： {data} ，文章内容 {llm_result_content}"
+        )
 
     return Response_extractor(**data)

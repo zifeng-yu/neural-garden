@@ -3,6 +3,9 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 
+CHUNK_SIZE = 500
+CHUNK_OVERLAP = 100
+
 
 def markdown_spilt(markdown: str) -> list[str]:
     markdown_splitter = MarkdownHeaderTextSplitter(
@@ -16,9 +19,9 @@ def markdown_spilt(markdown: str) -> list[str]:
     sections = markdown_splitter.split_text(markdown)
 
     # 第二步：对每个 section 做递归分割
-    recursive_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        chunk_size=500,
-        chunk_overlap=100,
+    recursive_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
     )
 
     chunks = recursive_splitter.split_documents(sections)

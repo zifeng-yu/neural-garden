@@ -3,7 +3,6 @@ from dataclasses import asdict, dataclass, field
 
 import networkx as nx
 
-import src.config.logging_config as logging_config
 from src.knowledgeGraph.knowledge_graph import NodeAttribute, NodeType
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,7 @@ def get_DiGraph_stats(G: nx.MultiDiGraph) -> DiGraphStats:
     if G.number_of_nodes() > 0:
         degree_dict = dict(G.in_degree())
         logger.info(f"degree dict {degree_dict}")
-        for k, v in degree_dict.items():
+        for k in degree_dict:
             logger.info(f"node: {k}")
             if G.nodes[k][NodeAttribute.TYPE.value] == NodeType.CONCEPT.value:
                 pass

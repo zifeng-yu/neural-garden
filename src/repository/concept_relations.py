@@ -33,7 +33,6 @@ def insert_concept_relation(
     confidence: float | None = None,
 ):
     with get_sqlite_connection() as conn:
-
         cursor = conn.execute(
             """
             INSERT INTO concept_relations
@@ -70,7 +69,6 @@ def insert_concept_relation(
 
 def query_all() -> list[ConceptRelations]:
     with get_sqlite_connection() as conn:
-
         rows = conn.execute(
             f"""
                     select * from {TABLE_NAME}

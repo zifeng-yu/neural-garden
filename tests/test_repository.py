@@ -13,8 +13,6 @@ import os
 import sqlite3
 import sys
 import unittest
-from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,11 +22,8 @@ from src.repository.document_chunk_concepts import (
     _query_by_document_id as query_concepts_by_document_id,
 )
 from src.repository.document_chunk_concepts import (
-    _query_by_not_document_id_and_in_normalized_concepts,
+    _query_by_not_document_id_in_normalized_concepts,
     insert_concept,
-)
-from src.repository.document_chunk_concepts import (
-    delete_by_document_id as delete_concepts_by_document_id,
 )
 from src.repository.document_chunks import (
     _query_by_document_id,
@@ -77,9 +72,10 @@ class TestDocumentsRepository(unittest.TestCase):
         # 查询
         result = _query_by_file_name_hash(self.conn, file_name_hash)
         self.assertIsNotNone(result)
-        self.assertEqual(result.file_name, file_name)
-        self.assertEqual(result.file_name_hash, file_name_hash)
-        self.assertEqual(result.content_hash, content_hash)
+        if result is not None:
+            self.assertEqual(result.file_name, file_name)
+            self.assertEqual(result.file_name_hash, file_name_hash)
+            self.assertEqual(result.content_hash, content_hash)
 
     def test_query_by_content_hash(self):
         """测试按内容 hash 查询"""
@@ -91,7 +87,8 @@ class TestDocumentsRepository(unittest.TestCase):
 
         result = _query_by_content_hash(self.conn, content_hash)
         self.assertIsNotNone(result)
-        self.assertEqual(result.file_name, file_name)
+        if result is not None:
+            self.assertEqual(result.file_name, file_name)
 
     def test_delete_by_id(self):
         """测试删除"""
@@ -208,7 +205,7 @@ class TestDocumentChunkConceptsRepository(unittest.TestCase):
         )
 
         # 查询"除了文档 A 外，还有哪些文档有'负利率'概念"
-        result = _query_by_not_document_id_and_in_normalized_concepts(
+        result = _query_by_not_document_id_in_normalized_concepts(
             self.conn, doc_id_a, ["负利率"]
         )
         self.assertEqual(len(result), 1)
@@ -237,7 +234,7 @@ class TestDocumentChunkConceptsRepository(unittest.TestCase):
         )
 
         # 查询其他文档是否有"测试独有概念"
-        result = _query_by_not_document_id_and_in_normalized_concepts(
+        result = _query_by_not_document_id_in_normalized_concepts(
             self.conn, doc_id_a, ["测试独有概念"]
         )
         # 应该为空，因为这个概念只在文档 A 中
@@ -286,7 +283,7 @@ class TestChromaCleanupLogic(unittest.TestCase):
         concepts_a = query_concepts_by_document_id(self.conn, doc_id_a)
         concepts_a_normalized = [c.normalized_concept for c in concepts_a]
 
-        other_doc_concepts = _query_by_not_document_id_and_in_normalized_concepts(
+        other_doc_concepts = _query_by_not_document_id_in_normalized_concepts(
             self.conn, doc_id_a, concepts_a_normalized
         )
         other_doc_concepts_normalized = [
@@ -323,7 +320,7 @@ class TestChromaCleanupLogic(unittest.TestCase):
         concepts_a = query_concepts_by_document_id(self.conn, doc_id_a)
         concepts_a_normalized = [c.normalized_concept for c in concepts_a]
 
-        other_doc_concepts = _query_by_not_document_id_and_in_normalized_concepts(
+        other_doc_concepts = _query_by_not_document_id_in_normalized_concepts(
             self.conn, doc_id_a, concepts_a_normalized
         )
         other_doc_concepts_normalized = [
@@ -358,7 +355,8 @@ class TestIncrementalIndexLogic(unittest.TestCase):
         # 查询
         result = _query_by_file_name_hash(self.conn, file_name_hash)
         self.assertIsNotNone(result)
-        self.assertEqual(result.content_hash, content_hash)
+        if result is not None:
+            self.assertEqual(result.content_hash, content_hash)
         # 应该返回 "skip"
         # （实际逻辑在 indexer.py 的 process_file 函数中）
 

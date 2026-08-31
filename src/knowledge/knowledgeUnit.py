@@ -1,7 +1,6 @@
 import logging
 from dataclasses import asdict, dataclass
 
-import src.config.logging_config as logging_config
 from src.knowledge.knowledge_extractor import Response_extractor, extractor_by_llm
 
 logger = logging.getLogger(__name__)

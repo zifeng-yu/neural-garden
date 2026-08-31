@@ -3,7 +3,6 @@ import logging
 import matplotlib.pyplot as plt
 import networkx as nx
 
-import src.config.logging_config as logging_config
 from src.knowledgeGraph.knowledge_graph import NodeAttribute, NodeType
 
 logger = logging.getLogger(__name__)

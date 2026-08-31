@@ -82,7 +82,6 @@ def query_by_normalized_concept(
     normalized_concept: str,
 ) -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
-
         rows = conn.execute(
             f"""
                     select * from {TABLE_NAME} where normalized_concept = ?
@@ -106,7 +105,6 @@ def query_by_document_id(
     document_id: int,
 ) -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
-
         rows = conn.execute(
             f"""
                     select * from {TABLE_NAME} where document_id = ?
@@ -126,7 +124,7 @@ def query_by_document_id(
         return result
 
 
-def _query_by_not_document_id_and_in_normalized_concepts(
+def _query_by_not_document_id_in_normalized_concepts(
     conn: sqlite3.Connection, document_id: int, normalized_concepts: list[str]
 ) -> list[DocumentChunkConceptsDO]:
     if not normalized_concepts:
@@ -135,8 +133,9 @@ def _query_by_not_document_id_and_in_normalized_concepts(
 
     rows = conn.execute(
         f"""
-                select * from {TABLE_NAME} where document_id != ? and normalized_concept in({placeholders})
-                """,
+        select * from {TABLE_NAME}
+        where document_id != ? and normalized_concept in({placeholders})
+        """,
         (
             document_id,
             *normalized_concepts,
@@ -155,11 +154,13 @@ def _query_by_not_document_id_and_in_normalized_concepts(
     return result
 
 
-def query_by_not_document_id_and_in_normalized_concepts(
+def query_by_not_document_id_in_normalized_concepts(
     document_id: int, normalized_concepts: list[str]
 ) -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
-        return _query_by_not_document_id_and_in_normalized_concepts(conn, document_id, normalized_concepts)
+        return _query_by_not_document_id_in_normalized_concepts(
+            conn, document_id, normalized_concepts
+        )
 
 
 def _query_by_document_id(
@@ -189,7 +190,6 @@ def query_by_chunk_id(
     chunk_id: int,
 ) -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
-
         rows = conn.execute(
             f"""
                     select * from {TABLE_NAME} where document_chunk_id = ?
@@ -211,7 +211,6 @@ def query_by_chunk_id(
 
 def query_all() -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
-
         rows = conn.execute(
             f"""
                     select * from {TABLE_NAME}

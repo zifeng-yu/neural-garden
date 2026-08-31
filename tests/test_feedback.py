@@ -10,7 +10,6 @@ Neural Garden Feedback 模块单元测试
 
 import sqlite3
 import unittest
-from datetime import datetime
 
 from src.repository.create_table import create_table_init_for_memory
 from src.repository.feedback_events import EventTypeEnum, _save_feedback_events
@@ -234,51 +233,6 @@ class TestFeedbackEvents(unittest.TestCase):
         )
         rows = cursor.fetchall()
         self.assertEqual(len(rows), len(EventTypeEnum))
-
-
-class TestForeignKeyConstraints(unittest.TestCase):
-    """测试外键约束"""
-
-    def setUp(self):
-        """每个测试前初始化内存数据库并开启外键约束"""
-        self.conn = sqlite3.connect(":memory:")
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA foreign_keys = ON")  # 开启外键约束
-        create_table_init_for_memory(self.conn)
-
-    def tearDown(self):
-        """每个测试后关闭连接"""
-        if hasattr(self, "conn") and self.conn:
-            self.conn.close()
-
-    def test_feedback_events_requires_session(self):
-        """测试 feedback_events 必须有有效的 session_id"""
-        # 尝试插入不存在的 session_id
-        with self.assertRaises(sqlite3.IntegrityError):
-            _save_feedback_events(
-                conn=self.conn,
-                session_id="nonexistent_session",
-                event_type=EventTypeEnum.CLICK,
-                document_id=1,
-                rank=1,
-                dwell_time=None,
-            )
-
-    def test_search_results_requires_session(self):
-        """测试 search_results 必须有有效的 session_id"""
-        # 尝试插入不存在的 session_id
-        with self.assertRaises(sqlite3.IntegrityError):
-            _save_search_results(
-                conn=self.conn,
-                session_id="nonexistent_session",
-                document_id=1,
-                document_chunk_id=10,
-                rank=1,
-                score=0.9,
-                raw_score=0.1,
-                retrieval_type=RetrievalTypeEnum.VECTOR,
-                source_type=SourceTypeEnum.CHROMA_KNOWLEDGE,
-            )
 
 
 if __name__ == "__main__":

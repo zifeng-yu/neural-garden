@@ -88,7 +88,10 @@ class InsightEmbeddingTextDTO:
 
     def to_embedding_text(self) -> str:
         """生成用于向量化的文本（标题 + 摘要 + 关键词）"""
-        return f"{self.title}。{self.content}。行动项：{', '.join(self.action_items)}。关联概念:{', '.join(self.relation_concepts)}"
+        return (
+            f"{self.title}。{self.content}。行动项：{', '.join(self.action_items)}。"
+            f"关联概念:{', '.join(self.relation_concepts)}"
+        )
 
 
 def create_insight_vector(insight_id: int):
@@ -101,9 +104,12 @@ def create_insight_vector(insight_id: int):
         insight_do.action_items,
         insight_do.relation_concepts,
     )
+    embedding_result = get_embedding(insight_embedding_text_dto.to_embedding_text())
+    if embedding_result is None:
+        return
     insight_dto = InsightDTO(
         str(insight_do.id),
-        get_embedding(insight_embedding_text_dto.to_embedding_text()),
+        embedding_result,
         insight_embedding_text_dto.to_embedding_text(),
         InsightMetadata(
             insight_do.id,

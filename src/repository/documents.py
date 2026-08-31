@@ -127,7 +127,6 @@ def query_by_id(id: int):
 
 def query_all() -> list[DocumentDO]:
     with get_sqlite_connection() as conn:
-
         rows = conn.execute(
             f"""
                     select * from {TABLE_NAME}

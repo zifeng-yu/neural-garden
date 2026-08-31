@@ -3,14 +3,12 @@ from collections import defaultdict
 
 import networkx as nx
 
-import src.config.logging_config as logging_config
 from src.embedding.getEmbedding import get_embedding
 from src.knowledgeGraph.concepts_extractor import (
     extract_concepts_from_text,
     extract_max_similarity_concept,
 )
 from src.knowledgeGraph.concepts_relation import (
-    ConceptClusters,
     ConceptInChunkText,
     ConceptMergeResult,
     extract_concept_clusters,
@@ -20,8 +18,8 @@ from src.repository.document_chunk_concepts import (
 )
 from src.repository.document_chunks import query_by_ids as query_by_ids_chunks
 from src.repository.document_insert_domain import InsertChunk
-from src.util.similarity import calculate_similarity
 from src.util.getHashValue import get_hash_value as hash
+from src.util.similarity import calculate_similarity
 from src.vector_store.query_dao import search_by_threshold_concept
 
 logger = logging.getLogger(__name__)
@@ -31,12 +29,14 @@ def documents_to_concepts(knowledgeUnit_title: str, chunk_content: str):
     """
     提炼所有文档的概念
     """
-    result = []
     if knowledgeUnit_title is None or chunk_content is None:
-        return result
+        return []
     if len(knowledgeUnit_title) == 0 or len(chunk_content) == 0:
-        return result
-    fulll_text = f"<文本标题>{knowledgeUnit_title}</文本标题>\n<文本内容>{chunk_content}</文本内容>"
+        return []
+    fulll_text = (
+        f"<文本标题>{knowledgeUnit_title}</文本标题>"
+        f"\n<文本内容>{chunk_content}</文本内容>"
+    )
     return extract_concepts_from_text(fulll_text)
 
 
@@ -49,7 +49,7 @@ def normalized_concept(
     if not insert_chunks:
         return []
     # 0. assembler
-    concept_chunk_dict = defaultdict(list[str])
+    concept_chunk_dict: defaultdict[str, list[str]] = defaultdict(list)
     for chunk in insert_chunks:
         for concept_x in chunk.concepts:
             concept_chunk_dict[concept_x.normalized_concept].append(chunk.content)
@@ -84,7 +84,8 @@ def normalized_concept(
             )
             if max_similarity_concepts is not None and len(max_similarity_concepts) > 0:
                 logger.info(
-                    f"新增加概念 {concept} 最相似概念 llm判断结果：{max_similarity_concepts}"
+                    f"新增加概念 {concept} "
+                    f"最相似概念 llm判断结果：{max_similarity_concepts}"
                 )
                 normalized_concept_result = max_similarity_concepts[0]
         concept_normalized_dict[concept] = normalized_concept_result
@@ -119,7 +120,7 @@ def _concept_paris_connected_components(
 ) -> list[set[str]]:
     if not concept_pairs:
         return []
-    G = nx.Graph()
+    G: nx.Graph = nx.Graph()
     for a, b, score in concept_pairs:
         G.add_edge(a, b, weight=score)
     return list(nx.connected_components(G))
@@ -136,7 +137,12 @@ def concept_clustering_in_document(insert_chunks: list[InsertChunk]):
             concept_chunk_dict[concept_x.normalized_concept].append(chunk.content)
     concepts = [x for x in concept_chunk_dict]
     # 1. embedding
-    concepts_embedding = [get_embedding(e) for e in concepts]
+    concepts_embedding: list[list[float]] = []
+    for e in concepts:
+        get_embedding_result = get_embedding(e)
+        if get_embedding_result is None:
+            return
+        concepts_embedding.append(get_embedding_result)
     # 2. 相似度pairs 有可能阈值太高 返回为空
     concept_pairs = _find_similar_concept_pairs(concepts, concepts_embedding)
     logger.info(f"concept_pairs result {concept_pairs}")

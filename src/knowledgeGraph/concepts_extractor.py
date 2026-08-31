@@ -1,6 +1,5 @@
 import logging
 
-import src.config.logging_config as logging_config
 from src.util.callDashscopellm import generate as fetchLLM
 
 logger = logging.getLogger(__name__)
@@ -70,7 +69,8 @@ def extract_max_similarity_concept(
 1. 如果两个概念只是表达方式不同、简称、全称、同义词，则认为相同。
 2. 如果两个概念存在上下位关系、相关关系，但不是同一个概念，则认为不同。
 3. 不要因为语义相关就合并。
-4. 不允许将父概念和子概念合并。例如：算法 ≠ 排序算法 数据结构 ≠ HashSet 复杂度 ≠ 时间复杂度 复杂度 ≠ 空间复杂度
+4. 不允许将父概念和子概念合并。
+例如：算法 ≠ 排序算法 数据结构 ≠ HashSet 复杂度 ≠ 时间复杂度 复杂度 ≠ 空间复杂度
 5. 判断是否同一实体，不是是否属于同一主题。
 
 例如：

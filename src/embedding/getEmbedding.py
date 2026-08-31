@@ -3,8 +3,7 @@ import logging
 import dashscope
 from dashscope import TextEmbedding
 
-import src.config.logging_config as logging_config
-from src.config.config import API_KEY, EMBEDDING_MODEL
+from src.config.config import EMBEDDING_MODEL, get_dashscope_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +20,7 @@ def get_embedding(text: str) -> list[float] | None:
         向量列表（float）
     """
     try:
-
-        dashscope.api_key = API_KEY
+        dashscope.api_key = get_dashscope_api_key()
 
         response = TextEmbedding.call(model=EMBEDDING_MODEL, input=text)
 

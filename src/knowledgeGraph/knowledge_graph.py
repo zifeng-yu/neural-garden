@@ -1,11 +1,9 @@
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
 import networkx as nx
 
-import src.config.logging_config as logging_config
 from src.repository.concept_relations import query_all as query_all_concept_relations
 from src.repository.document_chunk_concepts import query_all as query_all_chunk_concepts
 from src.repository.documents import query_all as query_all_documents
@@ -45,7 +43,7 @@ def build_concept_graph() -> nx.MultiDiGraph:
     新版 只需要从sqlite读取所有数据，即可内存建立图
     """
     # 因为现在按照chunk产出概念，再归一，所以可能存在多边（概念A -> 概念B）
-    G = nx.MultiDiGraph()
+    G: nx.MultiDiGraph = nx.MultiDiGraph()
     # 1. 拉取数据
     all_chunk_concetps = query_all_chunk_concepts()
     all_documents = query_all_documents()

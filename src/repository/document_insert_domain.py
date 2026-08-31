@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass, field
 
-import src.config.logging_config as logging_config
 from src.get_sqlite_connection import get_sqlite_connection
 from src.repository.document_chunk_concepts import insert_concept
 from src.repository.document_chunk_knowledge_units import insert_knowledge_unit

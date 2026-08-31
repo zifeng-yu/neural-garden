@@ -1,8 +1,8 @@
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
-import src.config.logging_config as logging_config
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
     CHROMA_INSIGHT_TABLE_NAME,
@@ -40,9 +40,10 @@ class KnowledgeUnitDTO:
 
 def save_knowlege(knowledgeUnitDTO: KnowledgeUnitDTO):
     collection = get_collection(CHROMA_KNOWLEDGE_TABLE_NAME)
+    embeddings: list[Sequence[float]] = [knowledgeUnitDTO.embedding]
     collection.upsert(
         ids=[knowledgeUnitDTO.id],
-        embeddings=[knowledgeUnitDTO.embedding],
+        embeddings=embeddings,
         documents=[knowledgeUnitDTO.text],
         metadatas=[knowledgeUnitDTO.metadata.to_dict()],
     )
@@ -60,9 +61,10 @@ class ConceptDTO:
 
 def save_concept(conceptDTO: ConceptDTO):
     collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)
+    embeddings: list[Sequence[float]] = [conceptDTO.embedding]
     collection.upsert(
         ids=[conceptDTO.id],
-        embeddings=[conceptDTO.embedding],
+        embeddings=embeddings,
         documents=[conceptDTO.normalized_concept],
     )
 
@@ -89,9 +91,10 @@ class InsightDTO:
 
 def save_insight(insightDTO: InsightDTO):
     collection = get_collection(CHROMA_INSIGHT_TABLE_NAME)
+    embeddings: list[Sequence[float]] = [insightDTO.embedding]
     collection.upsert(
         ids=[insightDTO.id],
-        embeddings=[insightDTO.embedding],
+        embeddings=embeddings,
         documents=[insightDTO.embedding_text],
         metadatas=[insightDTO.metadata.to_dict()],
     )
