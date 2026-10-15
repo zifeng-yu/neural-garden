@@ -136,6 +136,8 @@ def concept_clustering_in_document(insert_chunks: list[InsertChunk]):
         for concept_x in chunk.concepts:
             concept_chunk_dict[concept_x.normalized_concept].append(chunk.content)
     concepts = [x for x in concept_chunk_dict]
+    if not concepts:
+        return
     # 1. embedding
     concepts_embedding: list[list[float]] = []
     for e in concepts:

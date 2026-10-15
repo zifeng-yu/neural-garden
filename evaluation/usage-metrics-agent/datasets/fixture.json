@@ -1,0 +1,216 @@
+{
+  "source": "tests/test_feedback_tools.py",
+  "extracted_at": "2026-10-11",
+  "sessions": [
+    {
+      "session_id": "s0",
+      "query": "RAG",
+      "result_count": 0,
+      "created_at": "2026-09-30 23:59:59"
+    },
+    {
+      "session_id": "s1",
+      "query": "RAG",
+      "result_count": 2,
+      "created_at": "2026-10-01 00:00:00"
+    },
+    {
+      "session_id": "s2",
+      "query": "RAG",
+      "result_count": 0,
+      "created_at": "2026-10-02 10:00:00"
+    },
+    {
+      "session_id": "s3",
+      "query": "Agent",
+      "result_count": 0,
+      "created_at": "2026-10-03 10:00:00"
+    },
+    {
+      "session_id": "s4",
+      "query": "ES",
+      "result_count": 0,
+      "created_at": "2026-10-04 10:00:00"
+    },
+    {
+      "session_id": "s5",
+      "query": "ES",
+      "result_count": 1,
+      "created_at": "2026-10-05 10:00:00"
+    },
+    {
+      "session_id": "s6",
+      "query": "RAG",
+      "result_count": 0,
+      "created_at": "2026-10-07 23:59:59"
+    },
+    {
+      "session_id": "s7",
+      "query": "Python",
+      "result_count": 1,
+      "created_at": "2026-10-06 10:00:00"
+    },
+    {
+      "session_id": "s8",
+      "query": "SQL",
+      "result_count": 1,
+      "created_at": "2026-10-06 11:00:00"
+    },
+    {
+      "session_id": "s9",
+      "query": "Z",
+      "result_count": 1,
+      "created_at": "2026-10-06 12:00:00"
+    },
+    {
+      "session_id": "s10",
+      "query": "RAG",
+      "result_count": 0,
+      "created_at": "2026-10-08 00:00:00"
+    }
+  ],
+  "events": [
+    {
+      "session_id": "s1",
+      "event_type": "click",
+      "document_id": 4,
+      "created_at": "2026-10-01 00:00:00"
+    },
+    {
+      "session_id": "s1",
+      "event_type": "click",
+      "document_id": 4,
+      "created_at": "2026-10-01 00:01:00"
+    },
+    {
+      "session_id": "s0",
+      "event_type": "click",
+      "document_id": 4,
+      "created_at": "2026-10-02 10:00:00"
+    },
+    {
+      "session_id": "s3",
+      "event_type": "click",
+      "document_id": 6,
+      "created_at": "2026-10-03 10:00:00"
+    },
+    {
+      "session_id": "s4",
+      "event_type": "click",
+      "document_id": 6,
+      "created_at": "2026-10-04 10:00:00"
+    },
+    {
+      "session_id": "s5",
+      "event_type": "click",
+      "document_id": 1,
+      "created_at": "2026-10-05 10:00:00"
+    },
+    {
+      "session_id": "s7",
+      "event_type": "click",
+      "document_id": 2,
+      "created_at": "2026-10-06 10:00:00"
+    },
+    {
+      "session_id": "s8",
+      "event_type": "click",
+      "document_id": 3,
+      "created_at": "2026-10-06 11:00:00"
+    },
+    {
+      "session_id": "s9",
+      "event_type": "click",
+      "document_id": 9,
+      "created_at": "2026-10-07 23:59:59"
+    },
+    {
+      "session_id": "s3",
+      "event_type": "dwell",
+      "document_id": 6,
+      "created_at": "2026-10-03 10:01:00"
+    },
+    {
+      "session_id": "s3",
+      "event_type": "click",
+      "document_id": null,
+      "created_at": "2026-10-03 10:02:00"
+    },
+    {
+      "session_id": "s0",
+      "event_type": "click",
+      "document_id": 99,
+      "created_at": "2026-09-30 23:59:59"
+    },
+    {
+      "session_id": "s10",
+      "event_type": "click",
+      "document_id": 99,
+      "created_at": "2026-10-08 00:00:00"
+    }
+  ],
+  "expected_range": {
+    "start_date": "2026-10-01",
+    "end_date_exclusive": "2026-10-08"
+  },
+  "expected_metrics": {
+    "popular_queries": [
+      {
+        "key": "RAG",
+        "count": 3
+      },
+      {
+        "key": "ES",
+        "count": 2
+      },
+      {
+        "key": "Agent",
+        "count": 1
+      },
+      {
+        "key": "Python",
+        "count": 1
+      },
+      {
+        "key": "SQL",
+        "count": 1
+      }
+    ],
+    "zero_result_queries": [
+      {
+        "key": "RAG",
+        "count": 2
+      },
+      {
+        "key": "Agent",
+        "count": 1
+      },
+      {
+        "key": "ES",
+        "count": 1
+      }
+    ],
+    "popular_documents": [
+      {
+        "key": 4,
+        "count": 3
+      },
+      {
+        "key": 6,
+        "count": 2
+      },
+      {
+        "key": 1,
+        "count": 1
+      },
+      {
+        "key": 2,
+        "count": 1
+      },
+      {
+        "key": 3,
+        "count": 1
+      }
+    ]
+  }
+}

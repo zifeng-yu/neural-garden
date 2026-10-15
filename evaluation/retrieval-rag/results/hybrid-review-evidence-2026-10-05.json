@@ -1,0 +1,106 @@
+{
+  "server": "9.5.4",
+  "client": "9.5.1",
+  "index": "ng-ku-20261005-v1",
+  "records": 25,
+  "three_stores_equal": true,
+  "mapping": {
+    "dynamic": "strict",
+    "properties": {
+      "chunk_hash": {
+        "type": "keyword"
+      },
+      "document_chunk_id": {
+        "type": "long"
+      },
+      "document_id": {
+        "type": "long"
+      },
+      "knowledge_unit_id": {
+        "type": "keyword"
+      },
+      "retrieval_text": {
+        "type": "text",
+        "analyzer": "cjk"
+      }
+    }
+  },
+  "tokens": [
+    "hashset",
+    "狐狸",
+    "狸型",
+    "型专",
+    "专家"
+  ],
+  "snapshot_sha256": "da8c614943eac5fea71ef462691c841771a8f7e3e03d7ec97f9337d0e943c5e1",
+  "bm25": {
+    "HashSet": [
+      {
+        "rank": 1,
+        "document_id": 1,
+        "chunk_id": 3,
+        "score": 4.033175
+      },
+      {
+        "rank": 2,
+        "document_id": 1,
+        "chunk_id": 5,
+        "score": 3.61837
+      }
+    ],
+    "狐狸型专家": [
+      {
+        "rank": 1,
+        "document_id": 4,
+        "chunk_id": 20,
+        "score": 15.854393
+      },
+      {
+        "rank": 2,
+        "document_id": 4,
+        "chunk_id": 21,
+        "score": 15.575204
+      },
+      {
+        "rank": 3,
+        "document_id": 4,
+        "chunk_id": 19,
+        "score": 3.2871017
+      },
+      {
+        "rank": 4,
+        "document_id": 4,
+        "chunk_id": 17,
+        "score": 2.840813
+      }
+    ],
+    "不存在的独角兽编号ZXQ999": [
+      {
+        "rank": 1,
+        "document_id": 1,
+        "chunk_id": 3,
+        "score": 6.8739
+      },
+      {
+        "rank": 2,
+        "document_id": 1,
+        "chunk_id": 4,
+        "score": 2.6970594
+      },
+      {
+        "rank": 3,
+        "document_id": 1,
+        "chunk_id": 2,
+        "score": 2.1461794
+      }
+    ]
+  },
+  "code_sha256": {
+    "src/lexical_search.py": "325efdd2810633b510f96e716ca0aa62056ebe1ebf4f1a4118675d050b45b680",
+    "src/hybrid_search.py": "aa26c741e3607a7ac931f0dd3fd8a13d53a56b75f9794ce1e77569b672c881b7",
+    "src/rag_answer.py": "9e4958c628d37f2f893a0d3a7edc352ad65e3fe2758d0ee877e8089f46e75c38",
+    "src/search.py": "d818a3cb26457d47c13d8c6a6413096866bd527503bd156e2c1837f5b7309c2c",
+    "tests/test_hybrid_search.py": "c8842c1a4d7f01495e9dae1f211c00fee00aa9f0750ebbde3590f5c098f52265",
+    "tests/test_rag_answer.py": "ae0d702c10602c321ea1462eb4255eb011a58cd8b3c96c035c6478d9cf71b396"
+  }
+}

@@ -1,0 +1,10 @@
+{"model": "qwen3.5-plus", "temperature": 0, "thread_id": "ng-usage-clarify", "db_path": "/Users/zifeng/neural-garden/notes/ng-usage-practice/fixture.sqlite"}
+{"content":"帮我看看统计。","additional_kwargs":{},"response_metadata":{},"type":"human","name":null,"id":null}
+model
+{"content":"请问您想查看哪个指标的统计？支持以下三项：\n1. **popular_queries**（热门搜索词）\n2. **zero_result_queries**（结果数为零的搜索词）\n3. **popular_documents**（文档点击次数）\n\n另外，请提供具体的**日期范围**（起始日期和结束日期），以便我为您查询数据。","additional_kwargs":{"refusal":null},"response_metadata":{"token_usage":{"completion_tokens":74,"prompt_tokens":726,"total_tokens":800,"completion_tokens_details":{"accepted_prediction_tokens":null,"audio_tokens":null,"reasoning_tokens":null,"rejected_prediction_tokens":null,"text_tokens":74},"prompt_tokens_details":{"audio_tokens":null,"cache_write_tokens":null,"cached_tokens":null,"image_tokens":null,"text_tokens":726}},"model_provider":"openai","model_name":"qwen3.5-plus","system_fingerprint":null,"id":"chatcmpl-0a69fe45-53e7-9eb4-ae07-91dd75f39d1b","finish_reason":"stop","logprobs":null},"type":"ai","name":null,"id":"lc_run--01a11be7-029b-7c61-bcac-032058203f25-0","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"input_tokens":726,"output_tokens":74,"total_tokens":800,"input_token_details":{},"output_token_details":{}}}
+请问您想查看哪个指标的统计？支持以下三项：
+1. **popular_queries**（热门搜索词）
+2. **zero_result_queries**（结果数为零的搜索词）
+3. **popular_documents**（文档点击次数）
+
+另外，请提供具体的**日期范围**（起始日期和结束日期），以便我为您查询数据。

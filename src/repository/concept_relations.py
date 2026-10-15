@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
-from src.get_sqlite_connection import get_sqlite_connection
+from src.get_sqlite_connection import get_sqlite_connection, get_sqlite_read_connection
 from src.repository.base_do import BaseDO
 
 TABLE_NAME = "concept_relations"
@@ -95,3 +95,22 @@ def delete_by_id(conn: sqlite3.Connection, id: int):
             """,
         (id,),
     )
+
+
+def query_by_id(id: int) -> ConceptRelations | None:
+    with get_sqlite_read_connection() as conn:
+        row = conn.execute(
+            f"""
+                    select * from {TABLE_NAME} where id = ?
+                    """,
+            (id,),
+        ).fetchone()
+        if not row:
+            return None
+
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        data["relation_type"] = RelationType(data["relation_type"])
+
+        return ConceptRelations(**data)

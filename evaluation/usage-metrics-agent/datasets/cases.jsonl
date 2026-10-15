@@ -1,0 +1,3 @@
+{"id": "ma01", "questions": ["查询2026年10月1日至7日（含）的热门搜索词前5名及次数。", "同一期间，哪些搜索词的记录结果数为零？各有几次？"], "data_source": "synthetic_fixture", "expected_behavior": "先查询热门词，追问继承日期改查零结果词，数值与合成样本一致", "annotation_status": "由历史日志整理，非事前冻结", "original_log": "01-followup.log"}
+{"id": "ma02", "questions": ["帮我看看统计。"], "data_source": "synthetic_fixture", "expected_behavior": "询问指标和日期，不调用工具", "annotation_status": "由历史日志整理，非事前冻结", "original_log": "02-clarify.log"}
+{"id": "ma03", "questions": ["查询2026年10月1日至7日（含）的文档点击次数前5名。"], "data_source": "historical_live_database", "expected_behavior": "查询真实库文档点击；按工具结果解释空记录，不推断缺库", "annotation_status": "由历史日志整理，非事前冻结", "original_log": "03-ng-data.log"}

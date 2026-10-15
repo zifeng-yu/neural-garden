@@ -44,6 +44,8 @@ data/*.sqlite
 
 # 日志
 *.log
+# 评估所需的历史指标 Agent 日志
+!evaluation/usage-metrics-agent/results/archived-logs/*.log
 
 # 教程文档（存储在父目录，不提交到仓库）
 tutorials/*.md

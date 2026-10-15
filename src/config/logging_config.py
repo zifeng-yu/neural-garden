@@ -2,15 +2,26 @@ import logging
 import logging.config
 from pathlib import Path
 
+from src.config.config import (
+    LOG_BACKUP_COUNT,
+    LOG_DIRECTORY,
+    LOG_ERROR_BACKUP_COUNT,
+    LOG_LEVEL,
+    LOG_MAX_BYTES,
+)
 
-def setup_logging(log_dir: str = "logs", level: str = "INFO"):
+
+def setup_logging(
+    *,
+    console_stream: str = "ext://sys.stdout",
+):
     """
     生产级日志配置
     - 控制台输出(INFO 及以上)
     - 滚动文件(DEBUG 及以上,10MB * 10 个备份）
     - 支持按模块单独控制级别
     """
-    log_path = Path(__file__).resolve().parents[2] / log_dir
+    log_path = Path(LOG_DIRECTORY)
 
     log_path.mkdir(parents=True, exist_ok=True)
 
@@ -35,15 +46,15 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO"):
                 "class": "logging.StreamHandler",
                 "level": "DEBUG",
                 "formatter": "standard",
-                "stream": "ext://sys.stdout",
+                "stream": console_stream,
             },
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "DEBUG",
                 "formatter": "standard",
                 "filename": str(log_path / "app.log"),
-                "maxBytes": 10 * 1024 * 1024,  # 10 MB
-                "backupCount": 10,
+                "maxBytes": LOG_MAX_BYTES,  # 10 MB
+                "backupCount": LOG_BACKUP_COUNT,
                 "encoding": "utf-8",
             },
             # 可选：单独的错误日志文件
@@ -52,8 +63,8 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO"):
                 "level": "ERROR",
                 "formatter": "standard",
                 "filename": str(log_path / "error.log"),
-                "maxBytes": 10 * 1024 * 1024,
-                "backupCount": 5,
+                "maxBytes": LOG_MAX_BYTES,
+                "backupCount": LOG_ERROR_BACKUP_COUNT,
                 "encoding": "utf-8",
             },
         },
@@ -76,7 +87,7 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO"):
         #     "asyncio": {"level": "WARNING", "propagate": False},
         # },
         "root": {
-            "level": level.upper(),  # 全局默认级别
+            "level": LOG_LEVEL.upper(),  # 全局默认级别
             "handlers": ["console", "file", "error_file"],
         },
     }

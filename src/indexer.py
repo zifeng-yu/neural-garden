@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 
@@ -62,7 +63,7 @@ from src.repository.documents import (
 )
 from src.repository.documents import delete_by_id as delete_by_id_documents
 from src.repository.documents import query_by_id as query_by_id_document
-from src.repository.init import sqlite_table_create_if_not, sqlite_table_init
+from src.repository.init import sqlite_table_create_if_not, sqlite_table_reset
 from src.repository.insights import mark_source_status_offline_by_document_id
 from src.repository.insights import query_by_id as query_by_id_insights
 from src.repository.relation_evidence import (
@@ -105,7 +106,30 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="索引配置目录中的 Markdown 文档")
+    parser.add_argument(
+        "--resetAllDB",
+        action="store_true",
+        help="清空 SQLite 和三个 Chroma 集合后重新索引，不重置 ES",
+    )
+    args = parser.parse_args()
     setup_logging()
+    if args.resetAllDB:
+        logger.warning("正在全量重建：清空 SQLite 和三个 Chroma 集合，不重置 ES")
+        resetDB_KNOWLEDGE()
+        resetDB_CONCEPT()
+        resetDB_INSIGHT()
+        sqlite_table_reset()
+    else:
+        sqlite_table_create_if_not()
+
+    logger.info("🌱 Neural Garden 索引器")
+    logger.info("📂 索引目录：%s", PILOT_DATASET_PATH)
+    index_directory(PILOT_DATASET_PATH)
+
+    logger.info("\n" + "=" * 40)
+    logger.info("💡 提示：运行以下命令搜索知识：")
+    logger.info("   python -m src.search <查询内容>")
 
 
 def load_document(file_path: str) -> str:
@@ -409,7 +433,7 @@ def index_directory(dir_path: str):
     md_files = [f for f in os.listdir(dir_path) if f.endswith(".md")]
 
     if not md_files:
-        print(f"⚠️  未找到 .md 文件：{dir_path}")
+        logger.warning("⚠️  未找到 .md 文件：%s", dir_path)
         return
 
     logger.info(f"📂 发现 {len(md_files)} 个 Markdown 文件\n")
@@ -425,29 +449,3 @@ def index_directory(dir_path: str):
 
 if __name__ == "__main__":
     main()
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--resetAllDB", action="store_true")
-    args = parser.parse_args()
-    if args.resetAllDB:
-        resetDB_KNOWLEDGE()
-        resetDB_CONCEPT()
-        resetDB_INSIGHT()
-        sqlite_table_init()
-    else:
-        sqlite_table_create_if_not()
-
-    # 配置路径
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    pilot_dir = os.path.join(base_dir, PILOT_DATASET_PATH)
-
-    # 默认索引 pilot/ 目录
-    logger.info("🌱 Neural Garden 索引器（骨架版本）")
-    logger.info(f"📂 索引目录：{pilot_dir}")
-
-    index_directory(pilot_dir)
-
-    logger.info("\n" + "=" * 40)
-    logger.info("💡 提示：运行以下命令搜索知识：")
-    logger.info("   python -m src.search <查询内容>")

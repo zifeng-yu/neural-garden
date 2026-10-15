@@ -1,0 +1,5 @@
+{"id": "ka01", "question": "文中用哪种集合结构检测数组重复元素？", "followup": null, "expected_behavior": "检索知识单元、读取原文，按材料说明 Set/HashSet 并引用真实来源", "historical_evidence_ids": ["D1:C3", "D1:C4"], "provenance": "report.md", "annotation_status": "整理历史结果后形成，非事前冻结"}
+{"id": "ka02", "question": "请查我的资料，狐狸型专家有什么特征？读取原文并注明出处。", "followup": "刚才的出处", "expected_behavior": "读取相关原文并回答，追问沿用会话并提供对应原文出处", "historical_evidence_ids": ["D4:C20", "D4:C21"], "provenance": "report.md", "annotation_status": "整理历史结果后形成，非事前冻结"}
+{"id": "ka03", "question": "2026年nba总冠军是?", "followup": "刚才的出处", "expected_behavior": "资料无答案时明确说明不足，追问不得把无关资料包装成该问题的证据", "historical_evidence_ids": [], "provenance": "report.md", "annotation_status": "整理历史结果后形成，非事前冻结"}
+{"id": "ka04", "question": "你好", "followup": null, "expected_behavior": "直接回应，无需调用知识检索工具", "historical_evidence_ids": [], "provenance": "report.md", "annotation_status": "整理历史结果后形成，非事前冻结"}
+{"id": "ka05", "question": null, "followup": "刚才承认不确定性的说法，具体是哪段原文？", "expected_behavior": "引用原文解释，不把相关描述扩大成未经支持的因果关系", "historical_evidence_ids": ["D4:C20"], "provenance": "引用语义检查原始记录.md", "note": "只有历史追问片段，缺少完整首问及会话输入，不能当作完整可运行用例", "annotation_status": "整理历史结果后形成，非事前冻结"}

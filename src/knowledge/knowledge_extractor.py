@@ -8,7 +8,15 @@ from dashscope import MultiModalConversation
 from dashscope.api_entities.dashscope_response import MultiModalConversationResponse
 from pydantic import BaseModel, Field
 
-from src.config.config import LLM_MODEL, get_dashscope_api_key
+from src.config.config import (
+    EXTRACTION_RETRY_ATTEMPTS,
+    LLM_ENABLE_THINKING,
+    LLM_MODEL,
+    LLM_RETRY_BACKOFF,
+    LLM_RETRY_DELAY,
+    LLM_TEMPERATURE,
+    get_dashscope_api_key,
+)
 from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
@@ -25,7 +33,12 @@ class Response_extractor(BaseModel):
     keywords: list[str] = Field(min_length=0, max_length=10)
 
 
-@retry(times=2, exceptions=(LLMException,))
+@retry(
+    times=EXTRACTION_RETRY_ATTEMPTS,
+    delay=LLM_RETRY_DELAY,
+    backoff=LLM_RETRY_BACKOFF,
+    exceptions=(LLMException,),
+)
 def extractor_by_llm(content: str) -> Response_extractor:
     prompt = []
     system_prompt_content = """
@@ -57,8 +70,8 @@ def extractor_by_llm(content: str) -> Response_extractor:
         MultiModalConversation.call(
             model=LLM_MODEL,
             messages=prompt,
-            temperature=0.1,
-            enable_thinking=False,
+            temperature=LLM_TEMPERATURE,
+            enable_thinking=LLM_ENABLE_THINKING,
             response_format={"type": "json_object"},
             stream=False,
         ),

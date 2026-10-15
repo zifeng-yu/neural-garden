@@ -20,6 +20,9 @@ class SourceTypeEnum(str, Enum):
 
     CHROMA_KNOWLEDGE = "chroma_knowledge"
     CHROMA_INSIGHT = "chroma_insight"
+    ES_KNOWLEDGE = "es_knowledge"
+    HYBRID_KNOWLEDGE = "hybrid_knowledge"
+    GRAPH_KNOWLEDGE = "graph_knowledge"
 
 
 @dataclass

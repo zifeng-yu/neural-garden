@@ -10,17 +10,26 @@ DashScope LLM 调用封装（带重试机制）
 
 import json
 import logging
-from typing import Any, Optional, cast
+from typing import Any, Literal, TypeVar, cast, overload
 
 import dashscope
 from dashscope import MultiModalConversation
 from dashscope.api_entities.dashscope_response import MultiModalConversationResponse
 
-from src.config.config import LLM_MODEL, get_dashscope_api_key
+from src.config.config import (
+    LLM_ENABLE_THINKING,
+    LLM_MODEL,
+    LLM_RETRY_ATTEMPTS,
+    LLM_RETRY_BACKOFF,
+    LLM_RETRY_DELAY,
+    LLM_TEMPERATURE,
+    get_dashscope_api_key,
+)
 from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
 logger = logging.getLogger(__name__)
+ResponseT = TypeVar("ResponseT")
 
 
 # 定义可重试的异常类型
@@ -56,25 +65,50 @@ def _on_success(result: Any, total_time: float):
 
 
 # 重试装饰器配置
-# 重试 3 次，初始延迟 1 秒，退避倍数 2.0
+# 重试策略统一读取项目配置
 _llm_retry = retry(
-    times=3,
-    delay=1.0,
-    backoff=2.0,
+    times=LLM_RETRY_ATTEMPTS,
+    delay=LLM_RETRY_DELAY,
+    backoff=LLM_RETRY_BACKOFF,
     exceptions=RETRYABLE_EXCEPTIONS,
     retry_callback=_on_retry,
     success_callback=_on_success,
 )
 
 
+@overload
+def generate(
+    sys_prompt_content: str,
+    user_prompt_content: str,
+    response_json: Literal[True],
+    response_class: type[ResponseT],
+) -> ResponseT: ...
+
+
+@overload
+def generate(
+    sys_prompt_content: str,
+    user_prompt_content: str,
+    response_json: Literal[False] = False,
+    response_class: type[Any] | None = None,
+) -> str: ...
+
+
+@overload
+def generate(
+    sys_prompt_content: str,
+    user_prompt_content: str,
+    response_json: bool,
+    response_class: type[Any] | None = None,
+) -> Any: ...
+
+
 @_llm_retry
 def generate(
     sys_prompt_content: str,
     user_prompt_content: str,
-    temperature: float = 0.1,
-    enable_thinking: bool = False,
     response_json: bool = False,
-    response_class: Optional[type] = None,
+    response_class: type[Any] | None = None,
 ) -> Any:
     """
     调用 DashScope LLM 生成响应（带重试机制）
@@ -82,8 +116,6 @@ def generate(
     Args:
         sys_prompt_content: 系统提示词
         user_prompt_content: 用户提示词
-        temperature: 温度参数（0.0-2.0，越低越确定）
-        enable_thinking: 是否启用思考模式
         response_json: 是否要求 JSON 格式响应
         response_class: 如果指定，将 JSON 解析为该类
 
@@ -94,7 +126,7 @@ def generate(
         - response_class 指定：返回该类的实例
 
     Raises:
-        LLMException: 重试 3 次后仍失败
+        LLMException: 达到配置的最大尝试次数后仍失败
 
     示例:
         # 简单调用
@@ -133,8 +165,8 @@ def generate(
     params = {
         "model": LLM_MODEL,
         "messages": prompt,
-        "temperature": temperature,
-        "enable_thinking": enable_thinking,
+        "temperature": LLM_TEMPERATURE,
+        "enable_thinking": LLM_ENABLE_THINKING,
     }
 
     # JSON 格式要求

@@ -178,6 +178,27 @@ def query_by_relation_id(
         return _query_by_relation_id(new_conn, relation_id)
 
 
+def query_by_relation_id_evidence_role_both(
+    relation_id: int,
+) -> RelationEvidence | None:
+    with get_sqlite_connection() as conn:
+        row = conn.execute(
+            f"""
+                select * from {TABLE_NAME} where relation_id = ? and evidence_role = ?
+            """,
+            (relation_id, EvidenceRoleEnum.BOTH.value),
+        ).fetchone()
+        if not row:
+            return None
+
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        data["evidence_role"] = EvidenceRoleEnum(data["evidence_role"])
+
+        return RelationEvidence(**data)
+
+
 def _query_by_relation_id(
     conn: sqlite3.Connection, relation_id: int
 ) -> list[RelationEvidence]:

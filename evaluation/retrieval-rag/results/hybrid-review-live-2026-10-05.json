@@ -1,0 +1,418 @@
+{
+  "authorization": "用户2026-10-05明确批准上述两条DashScope真实问答",
+  "code_changed_since_local_review": [],
+  "runs": [
+    {
+      "question": "文中用哪种集合结构检测数组重复元素？",
+      "elapsed_seconds": 4.95,
+      "result": {
+        "status": "answered",
+        "claims": [
+          {
+            "text": "文中使用 HashSet（哈希集合）来检测数组中的重复元素。",
+            "source_ids": [
+              "S3"
+            ]
+          }
+        ],
+        "sources": [
+          {
+            "source_id": "S1",
+            "document_id": 1,
+            "chunk_id": 4,
+            "content_hash": "6d1aea1bd72f5067c583b7fd0735d5a2",
+            "text": "## Python 实现  \n```python\ndef contains_duplicate(nums):\nseen = set()\nfor num in nums:\nif num in seen:\nreturn True\nseen.add(num)\nreturn False\n\n# 测试\nprint(contains_duplicate([1, 2, 3, 1]))     # True（1 重复了）\nprint(contains_duplicate([1, 2, 3, 4]))     # False（都不重复）\nprint(contains_duplicate([526, 86, 526]))   # True（526 重复）\n```  \n---"
+          },
+          {
+            "source_id": "S2",
+            "document_id": 1,
+            "chunk_id": 2,
+            "content_hash": "34c747fd2ca737fd30a0eb8ce1c2e2d3",
+            "text": "## 问题  \n给定一个数组，判断里面有没有重复元素。  \n**场景**：检查粉丝列表有没有重复关注。  \n---"
+          },
+          {
+            "source_id": "S3",
+            "document_id": 1,
+            "chunk_id": 3,
+            "content_hash": "20b9aba4ef7711a793c8aeb2c8fff27b",
+            "text": "## 怎么想  \n最直接的办法：拿一个本子，一个一个看。看到一个新的就记下来。如果看到一个\"本子上已经有了\"的 → 有重复。  \n这个\"本子\"在编程里叫 **HashSet（哈希集合）**——它的特点是：存进去的东西，查\"有没有\"只要一瞬间。  \n---"
+          }
+        ]
+      },
+      "candidates": {
+        "bm25": [
+          {
+            "content": "Python 实现数组重复检测。本文展示了使用 Python 实现检测数组中是否存在重复元素的代码。核心逻辑是定义一个函数，利用集合（set）数据结构存储已遍历的数字。在循环中，若当前数字已在集合中则直接返回 True，否则将其加入集合。若循环结束未发现重复，则返回 False。文中还提供了三组测试用例，分别验证了存在重复、无重复以及大数值重复的情况，输出结果符合预期。。关键词：Python, 算法, 重复检测, 集合, Set, 代码实现, 数组",
+            "document_id": 1,
+            "document_chunk_id": 4,
+            "score": 27.736614,
+            "rank": 1,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "利用 HashSet 检测重复。文章介绍了检测重复元素的最直接方法：使用一个本子逐个记录新元素，若发现已存在的元素则判定为重复。在编程领域，这种“本子”对应的是 HashSet（哈希集合）。HashSet 的核心特点是存储数据后，查询某个元素是否存在的时间复杂度极低，能够实现瞬间查找，从而高效解决重复检测问题。。关键词：HashSet, 哈希集合, 检测重复, 编程, 查找效率, 数据结构",
+            "document_id": 1,
+            "document_chunk_id": 3,
+            "score": 18.160667,
+            "rank": 2,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "数组重复元素判断问题。本文提出了一个具体的编程问题：给定一个数组，需要判断其中是否包含重复元素。文章同时给出了该问题的实际应用场景，即检查粉丝列表中是否存在重复关注的情况。内容主要聚焦于问题定义及其在特定业务场景下的对应关系。。关键词：数组, 重复元素, 判断, 粉丝列表, 重复关注, 场景",
+            "document_id": 1,
+            "document_chunk_id": 2,
+            "score": 15.530241,
+            "rank": 3,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "算法复杂度与空间换时间策略。文档分析了特定算法的时间与空间复杂度，指出其时间复杂度为 O(n)，仅需遍历一次数组；空间复杂度在最坏情况下为 O(n)，需存储所有元素。文章对比了暴力法（O(n²)）与该方法（基于 HashSet），以 1000 个元素为例，说明暴力法需比较 100 万次，而 HashSet 仅需 1000 次。核心观点是通过增加空间消耗来换取时间效率的提升，即“空间换时间”策略。。关键词：时间复杂度, 空间复杂度, 空间换时间, 暴力法, HashSet, O(n), O(n²), 算法优化",
+            "document_id": 1,
+            "document_chunk_id": 5,
+            "score": 4.301255,
+            "rank": 4,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "饮食改变与肠道进化。早期人类肠道缩小意味着必须摄入更高质量、易消化的食物。由于肠道变短导致食物停留时间减少及能量提取降低，若仅食用低热量高纤维植物（如树叶、草、根茎），则需要长而慢的肠道，正如每天需花费 6-8 小时消化植物纤维的大猩猩。人类无需如此，因为人类开始吃肉，从而适应了较短的肠道结构。。关键词：肠道缩小, 早期人类, 高质量食物, 易消化, 能量提取, 植物纤维, 大猩猩, 吃肉",
+            "document_id": 6,
+            "document_chunk_id": 31,
+            "score": 1.9894712,
+            "rank": 5,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          }
+        ],
+        "vector": [
+          {
+            "content": "Python 实现数组重复检测。本文展示了使用 Python 实现检测数组中是否存在重复元素的代码。核心逻辑是定义一个函数，利用集合（set）数据结构存储已遍历的数字。在循环中，若当前数字已在集合中则直接返回 True，否则将其加入集合。若循环结束未发现重复，则返回 False。文中还提供了三组测试用例，分别验证了存在重复、无重复以及大数值重复的情况，输出结果符合预期。。关键词：Python, 算法, 重复检测, 集合, Set, 代码实现, 数组",
+            "document_id": 1,
+            "document_chunk_id": 4,
+            "score": 0.7648659944534302,
+            "rank": 1,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "数组重复元素判断问题。本文提出了一个具体的编程问题：给定一个数组，需要判断其中是否包含重复元素。文章同时给出了该问题的实际应用场景，即检查粉丝列表中是否存在重复关注的情况。内容主要聚焦于问题定义及其在特定业务场景下的对应关系。。关键词：数组, 重复元素, 判断, 粉丝列表, 重复关注, 场景",
+            "document_id": 1,
+            "document_chunk_id": 2,
+            "score": 0.7348796129226685,
+            "rank": 2,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "利用 HashSet 检测重复。文章介绍了检测重复元素的最直接方法：使用一个本子逐个记录新元素，若发现已存在的元素则判定为重复。在编程领域，这种“本子”对应的是 HashSet（哈希集合）。HashSet 的核心特点是存储数据后，查询某个元素是否存在的时间复杂度极低，能够实现瞬间查找，从而高效解决重复检测问题。。关键词：HashSet, 哈希集合, 检测重复, 编程, 查找效率, 数据结构",
+            "document_id": 1,
+            "document_chunk_id": 3,
+            "score": 0.688565194606781,
+            "rank": 3,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "算法复杂度与空间换时间策略。文档分析了特定算法的时间与空间复杂度，指出其时间复杂度为 O(n)，仅需遍历一次数组；空间复杂度在最坏情况下为 O(n)，需存储所有元素。文章对比了暴力法（O(n²)）与该方法（基于 HashSet），以 1000 个元素为例，说明暴力法需比较 100 万次，而 HashSet 仅需 1000 次。核心观点是通过增加空间消耗来换取时间效率的提升，即“空间换时间”策略。。关键词：时间复杂度, 空间复杂度, 空间换时间, 暴力法, HashSet, O(n), O(n²), 算法优化",
+            "document_id": 1,
+            "document_chunk_id": 5,
+            "score": 0.4320988059043884,
+            "rank": 4,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "Tetlock 的预测验证。文章描述了 Tetlock 为每个预测设定了明确的时间窗口和验证标准，随后进行了长达近二十年的等待以进行验证。内容主要聚焦于其研究方法的严谨性及时间跨度。。关键词：Tetlock, 预测, 时间窗口, 验证标准, 等待, 二十年",
+            "document_id": 4,
+            "document_chunk_id": 18,
+            "score": 0.12269890308380127,
+            "rank": 5,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "狐狸型与刺猬型专家预测对比。数据显示狐狸型专家的预测准确率显著高于刺猬型专家。然而，媒体更倾向于选择刺猬型专家，因为他们能给出确定的结论和清晰的叙事，适合在短时间内讲述完整故事。相比之下，狐狸型专家常表达不确定性及多种可能性，如“取决于很多因素”或“有两种可能”，这类观点往往不受媒体欢迎。。关键词：狐狸型专家, 刺猬型专家, 预测准确率, 媒体偏好, 确定性, 叙事, 不确定性",
+            "document_id": 4,
+            "document_chunk_id": 21,
+            "score": 0.11374503374099731,
+            "rank": 6,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "洞见：预测准确性与思考方式。本文核心观点指出，预测的准确性并不取决于个人在特定领域从业时间的长短，而是完全取决于个体的思考方式。文章强调思维模式对于提升预测能力的关键作用，否定了单纯依靠经验积累就能保证预测准确的传统认知。。关键词：预测准确性, 思考方式, 经验, 洞见, 思维模式",
+            "document_id": 4,
+            "document_chunk_id": 22,
+            "score": 0.09050130844116211,
+            "rank": 7,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "大脑能耗的惊人数据。文章通过一组数字揭示了人类大脑在能量消耗上的反常特征。尽管大脑仅占体重的 2%，却消耗了每日总能量的 20%。其单位质量的代谢成本是大腿肌肉的 10 倍。这种。关键词：大脑, 能量消耗, 代谢成本, 体重占比, 哺乳动物, 反常现象",
+            "document_id": 6,
+            "document_chunk_id": 28,
+            "score": 0.08645433187484741,
+            "rank": 8,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "狐狸与刺猬专家预测理论。Tetlock 借用阿奇洛克斯名言提出解释框架，将专家分为“刺猬型”和“狐狸型”。刺猬型专家拥有宏大理论框架并以此解释一切事件；狐狸型专家缺乏统一理论，倾向于根据具体情况调整判断并承认不确定性。数据显示，狐狸型专家的预测准确率显著高于刺猬型专家。。关键词：Tetlock, 狐狸型专家, 刺猬型专家, 预测准确率, 理论框架, 不确定性, 阿奇洛克斯",
+            "document_id": 4,
+            "document_chunk_id": 20,
+            "score": 0.0860329270362854,
+            "rank": 9,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "花自己的钱。文章指出花费自己的钱本应是简单之事，但如今已演变成一套精心设计的流程，导致人们在不知不觉中陷入信贷产品。作者强调，这种现象并非源于个人的愚蠢或疏忽，而是一套系统性运作的结果。。关键词：花钱, 信贷产品, 系统设计, 流程, 消费陷阱",
+            "document_id": 2,
+            "document_chunk_id": 10,
+            "score": 0.06928831338882446,
+            "rank": 10,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          }
+        ]
+      },
+      "trace": [
+        {
+          "document_id": 1,
+          "chunk_id": 4,
+          "rrf_score": 0.03278688524590164,
+          "final_rank": 1,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "document_id": 1,
+          "chunk_id": 2,
+          "rrf_score": 0.03200204813108039,
+          "final_rank": 2,
+          "vector_rank": 2,
+          "bm25_rank": 3
+        },
+        {
+          "document_id": 1,
+          "chunk_id": 3,
+          "rrf_score": 0.03200204813108039,
+          "final_rank": 3,
+          "vector_rank": 3,
+          "bm25_rank": 2
+        }
+      ]
+    },
+    {
+      "question": "这项专家研究报告的精确总体准确率是多少百分比？",
+      "elapsed_seconds": 1.957,
+      "result": {
+        "status": "insufficient_evidence",
+        "claims": [],
+        "sources": [
+          {
+            "source_id": "S1",
+            "document_id": 4,
+            "chunk_id": 19,
+            "content_hash": "e757e7f48162a0878b6e8c68420dac6d",
+            "text": "## 结果  \n2005 年，他出版了《Expert Political Judgment》一书，公布了结果。数据让所有人意外：  \n**专家的整体预测准确率只比随机猜测（比如掷硬币决定\"会发生\"或\"不会发生\"）略好一点点。**  \n在某些类别的预测上，专家的表现甚至不如简单的外推算法——就是那种\"假设明年和今年一样\"的朴素模型。  \n更反直觉的发现还在后面。Tetlock 分析了专家的知名度与预测准确性之间的关系。结果：  \n**知名度越高的专家，预测准确性反而越低。**  \n那些经常上电视、写专栏、被媒体引用的\"明星专家\"，他们的预测比默默无闻的同行更不准确。  \n---"
+          },
+          {
+            "source_id": "S2",
+            "document_id": 4,
+            "chunk_id": 20,
+            "content_hash": "c1fdacf7ac8e1efbbc6f0c9f55ae8b01",
+            "text": "## 狐狸与刺猬  \n为什么？Tetlock 提出一个解释框架，借用古希腊诗人阿奇洛克斯的名言：  \n> \"狐狸知道很多小事，刺猬知道一件大事。\"  \n**刺猬型专家**有一个宏大的理论框架（比如\"历史是阶级斗争的历史\"或\"市场总是有效的\"），他们用这个框架解释一切事件。  \n**狐狸型专家**没有统一理论，他们根据具体情况调整判断，愿意承认不确定性。  \n数据清晰显示：狐狸型专家的预测准确率显著高于刺猬型。"
+          },
+          {
+            "source_id": "S3",
+            "document_id": 4,
+            "chunk_id": 22,
+            "content_hash": "73f7f00de7d5b9aabcfafab90d2621a6",
+            "text": "## 洞见  \n预测准确性不取决于你在这个领域待了多久，而取决于你如何思考。  \n---  \n*测试文件 · Neural Garden Pilot Dataset*\n*测试 增加行数文件改动\n*测试 增加行数文件改动\n*测试 增加行数文件改动\n*测试 增加行数文件改动\n*测试 增加行数文件改动\n*测试 增加行数文件改动"
+          }
+        ]
+      },
+      "candidates": {
+        "bm25": [
+          {
+            "content": "专家预测准确率研究结果。2005 年出版的《Expert Political Judgment》一书公布的研究结果显示，专家的整体预测准确率仅略高于随机猜测。在部分类别中，专家表现甚至不如假设明年与今年一样的简单外推算法。研究还发现专家知名度与预测准确性呈负相关，经常出现在媒体上的“明星专家”，其预测准确度反而低于默默无闻的同行。。关键词：专家预测, 准确率, 随机猜测, 外推算法, 知名度, 明星专家, Expert Political Judgment",
+            "document_id": 4,
+            "document_chunk_id": 19,
+            "score": 12.311532,
+            "rank": 1,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "狐狸与刺猬专家预测理论。Tetlock 借用阿奇洛克斯名言提出解释框架，将专家分为“刺猬型”和“狐狸型”。刺猬型专家拥有宏大理论框架并以此解释一切事件；狐狸型专家缺乏统一理论，倾向于根据具体情况调整判断并承认不确定性。数据显示，狐狸型专家的预测准确率显著高于刺猬型专家。。关键词：Tetlock, 狐狸型专家, 刺猬型专家, 预测准确率, 理论框架, 不确定性, 阿奇洛克斯",
+            "document_id": 4,
+            "document_chunk_id": 20,
+            "score": 8.318394,
+            "rank": 2,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "狐狸型与刺猬型专家预测对比。数据显示狐狸型专家的预测准确率显著高于刺猬型专家。然而，媒体更倾向于选择刺猬型专家，因为他们能给出确定的结论和清晰的叙事，适合在短时间内讲述完整故事。相比之下，狐狸型专家常表达不确定性及多种可能性，如“取决于很多因素”或“有两种可能”，这类观点往往不受媒体欢迎。。关键词：狐狸型专家, 刺猬型专家, 预测准确率, 媒体偏好, 确定性, 叙事, 不确定性",
+            "document_id": 4,
+            "document_chunk_id": 21,
+            "score": 8.153613,
+            "rank": 3,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "284 位专家与 28000 个预测研究。文章指出大众通常认为专家在其专业领域的预测比普通人或随机猜测更准确。然而，宾夕法尼亚大学心理学家 Philip Tetlock 对此持不同观点。他从 1984 年启动了一项持续近 20 年的研究，收集了包括政治学家、经济学家、记者及政府官员在内的 284 位专家的预测，累计超过 28000 条。这些预测涵盖各类政治经济事件，如某国是否发生政变、经济指标是否超过阈值以及选举结果等。。关键词：Philip Tetlock, 专家预测, 心理学研究, 政治经济事件, 准确性, 宾夕法尼亚大学, 长期研究",
+            "document_id": 4,
+            "document_chunk_id": 17,
+            "score": 8.079296,
+            "rank": 4,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "洞见：预测准确性与思考方式。本文核心观点指出，预测的准确性并不取决于个人在特定领域从业时间的长短，而是完全取决于个体的思考方式。文章强调思维模式对于提升预测能力的关键作用，否定了单纯依靠经验积累就能保证预测准确的传统认知。。关键词：预测准确性, 思考方式, 经验, 洞见, 思维模式",
+            "document_id": 4,
+            "document_chunk_id": 22,
+            "score": 2.7329917,
+            "rank": 5,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          },
+          {
+            "content": "Tetlock 的预测验证。文章描述了 Tetlock 为每个预测设定了明确的时间窗口和验证标准，随后进行了长达近二十年的等待以进行验证。内容主要聚焦于其研究方法的严谨性及时间跨度。。关键词：Tetlock, 预测, 时间窗口, 验证标准, 等待, 二十年",
+            "document_id": 4,
+            "document_chunk_id": 18,
+            "score": 2.3980334,
+            "rank": 6,
+            "source_type": "es_knowledge",
+            "retrieval_type": "bm25"
+          }
+        ],
+        "vector": [
+          {
+            "content": "专家预测准确率研究结果。2005 年出版的《Expert Political Judgment》一书公布的研究结果显示，专家的整体预测准确率仅略高于随机猜测。在部分类别中，专家表现甚至不如假设明年与今年一样的简单外推算法。研究还发现专家知名度与预测准确性呈负相关，经常出现在媒体上的“明星专家”，其预测准确度反而低于默默无闻的同行。。关键词：专家预测, 准确率, 随机猜测, 外推算法, 知名度, 明星专家, Expert Political Judgment",
+            "document_id": 4,
+            "document_chunk_id": 19,
+            "score": 0.6302722692489624,
+            "rank": 1,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "洞见：预测准确性与思考方式。本文核心观点指出，预测的准确性并不取决于个人在特定领域从业时间的长短，而是完全取决于个体的思考方式。文章强调思维模式对于提升预测能力的关键作用，否定了单纯依靠经验积累就能保证预测准确的传统认知。。关键词：预测准确性, 思考方式, 经验, 洞见, 思维模式",
+            "document_id": 4,
+            "document_chunk_id": 22,
+            "score": 0.4684586524963379,
+            "rank": 2,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "284 位专家与 28000 个预测研究。文章指出大众通常认为专家在其专业领域的预测比普通人或随机猜测更准确。然而，宾夕法尼亚大学心理学家 Philip Tetlock 对此持不同观点。他从 1984 年启动了一项持续近 20 年的研究，收集了包括政治学家、经济学家、记者及政府官员在内的 284 位专家的预测，累计超过 28000 条。这些预测涵盖各类政治经济事件，如某国是否发生政变、经济指标是否超过阈值以及选举结果等。。关键词：Philip Tetlock, 专家预测, 心理学研究, 政治经济事件, 准确性, 宾夕法尼亚大学, 长期研究",
+            "document_id": 4,
+            "document_chunk_id": 17,
+            "score": 0.4502437114715576,
+            "rank": 3,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "狐狸型与刺猬型专家预测对比。数据显示狐狸型专家的预测准确率显著高于刺猬型专家。然而，媒体更倾向于选择刺猬型专家，因为他们能给出确定的结论和清晰的叙事，适合在短时间内讲述完整故事。相比之下，狐狸型专家常表达不确定性及多种可能性，如“取决于很多因素”或“有两种可能”，这类观点往往不受媒体欢迎。。关键词：狐狸型专家, 刺猬型专家, 预测准确率, 媒体偏好, 确定性, 叙事, 不确定性",
+            "document_id": 4,
+            "document_chunk_id": 21,
+            "score": 0.40427398681640625,
+            "rank": 4,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "狐狸与刺猬专家预测理论。Tetlock 借用阿奇洛克斯名言提出解释框架，将专家分为“刺猬型”和“狐狸型”。刺猬型专家拥有宏大理论框架并以此解释一切事件；狐狸型专家缺乏统一理论，倾向于根据具体情况调整判断并承认不确定性。数据显示，狐狸型专家的预测准确率显著高于刺猬型专家。。关键词：Tetlock, 狐狸型专家, 刺猬型专家, 预测准确率, 理论框架, 不确定性, 阿奇洛克斯",
+            "document_id": 4,
+            "document_chunk_id": 20,
+            "score": 0.3177880048751831,
+            "rank": 5,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "Tetlock 的预测验证。文章描述了 Tetlock 为每个预测设定了明确的时间窗口和验证标准，随后进行了长达近二十年的等待以进行验证。内容主要聚焦于其研究方法的严谨性及时间跨度。。关键词：Tetlock, 预测, 时间窗口, 验证标准, 等待, 二十年",
+            "document_id": 4,
+            "document_chunk_id": 18,
+            "score": 0.2471078634262085,
+            "rank": 6,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "Python 实现数组重复检测。本文展示了使用 Python 实现检测数组中是否存在重复元素的代码。核心逻辑是定义一个函数，利用集合（set）数据结构存储已遍历的数字。在循环中，若当前数字已在集合中则直接返回 True，否则将其加入集合。若循环结束未发现重复，则返回 False。文中还提供了三组测试用例，分别验证了存在重复、无重复以及大数值重复的情况，输出结果符合预期。。关键词：Python, 算法, 重复检测, 集合, Set, 代码实现, 数组",
+            "document_id": 1,
+            "document_chunk_id": 4,
+            "score": 0.21532773971557617,
+            "rank": 7,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "数组重复元素判断问题。本文提出了一个具体的编程问题：给定一个数组，需要判断其中是否包含重复元素。文章同时给出了该问题的实际应用场景，即检查粉丝列表中是否存在重复关注的情况。内容主要聚焦于问题定义及其在特定业务场景下的对应关系。。关键词：数组, 重复元素, 判断, 粉丝列表, 重复关注, 场景",
+            "document_id": 1,
+            "document_chunk_id": 2,
+            "score": 0.210804283618927,
+            "rank": 8,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "利用 HashSet 检测重复。文章介绍了检测重复元素的最直接方法：使用一个本子逐个记录新元素，若发现已存在的元素则判定为重复。在编程领域，这种“本子”对应的是 HashSet（哈希集合）。HashSet 的核心特点是存储数据后，查询某个元素是否存在的时间复杂度极低，能够实现瞬间查找，从而高效解决重复检测问题。。关键词：HashSet, 哈希集合, 检测重复, 编程, 查找效率, 数据结构",
+            "document_id": 1,
+            "document_chunk_id": 3,
+            "score": 0.2075897455215454,
+            "rank": 9,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          },
+          {
+            "content": "大脑能耗的惊人数据。文章通过一组数字揭示了人类大脑在能量消耗上的反常特征。尽管大脑仅占体重的 2%，却消耗了每日总能量的 20%。其单位质量的代谢成本是大腿肌肉的 10 倍。这种。关键词：大脑, 能量消耗, 代谢成本, 体重占比, 哺乳动物, 反常现象",
+            "document_id": 6,
+            "document_chunk_id": 28,
+            "score": 0.15661513805389404,
+            "rank": 10,
+            "source_type": "chroma_knowledge",
+            "retrieval_type": "vector"
+          }
+        ]
+      },
+      "trace": [
+        {
+          "document_id": 4,
+          "chunk_id": 19,
+          "rrf_score": 0.03278688524590164,
+          "final_rank": 1,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "document_id": 4,
+          "chunk_id": 20,
+          "rrf_score": 0.0315136476426799,
+          "final_rank": 2,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "document_id": 4,
+          "chunk_id": 22,
+          "rrf_score": 0.0315136476426799,
+          "final_rank": 3,
+          "vector_rank": 2,
+          "bm25_rank": 5
+        }
+      ]
+    }
+  ]
+}

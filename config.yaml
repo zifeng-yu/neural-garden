@@ -3,15 +3,44 @@
 dashscope:
   embedding_model: "text-embedding-v1"
   llm_model: "qwen3.5-plus"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  temperature: 0.1
+  enable_thinking: false
+  retry_attempts: 3
+  retry_delay: 1.0
+  retry_backoff: 2.0
+  extraction_retry_attempts: 2
 
 chroma:
   persist_directory: "data/chroma"
   knowledge_table_name: "knowledge"
   concept_table_name: "concept"
   insight_table_name: "insight"
+  distance_metric: "cosine"
 
 pilot_dataset:
   path: "data/pilot"
 
 sqlite:
   sqlite_directory: "data/sqlite/neural.db"
+
+elasticsearch:
+  url: "http://127.0.0.1:9201"
+  index_name: "ng-ku-20261005-v1"
+  request_timeout: 30
+  number_of_shards: 1
+  number_of_replicas: 0
+
+agent:
+  temperature: 0
+  request_timeout: 30
+  max_retries: 0
+  enable_thinking: false
+  recursion_limit: 12
+
+logging:
+  directory: "logs"
+  level: "INFO"
+  max_bytes: 10485760
+  backup_count: 10
+  error_backup_count: 5

@@ -209,6 +209,33 @@ def query_by_chunk_id(
         return result
 
 
+def query_by_chunk_id_document_id(
+    chunk_id: int, document_id: int
+) -> list[DocumentChunkConceptsDO]:
+    with get_sqlite_connection() as conn:
+        rows = conn.execute(
+            f"""
+                select * from {TABLE_NAME}
+                where document_chunk_id = ? and document_id = ?
+            """,
+            (
+                chunk_id,
+                document_id,
+            ),
+        ).fetchall()
+        if not rows:
+            return []
+
+        result = []
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            result.append(DocumentChunkConceptsDO(**data))
+
+        return result
+
+
 def query_all() -> list[DocumentChunkConceptsDO]:
     with get_sqlite_connection() as conn:
         rows = conn.execute(

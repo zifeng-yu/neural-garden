@@ -1,0 +1,29 @@
+{"model": "qwen3.5-plus", "temperature": 0, "thread_id": "ng-usage-followup", "db_path": "/Users/zifeng/neural-garden/notes/ng-usage-practice/fixture.sqlite"}
+{"content":"查询2026年10月1日至7日（含）的热门搜索词前5名及次数。","additional_kwargs":{},"response_metadata":{},"type":"human","name":null,"id":null}
+model
+{"content":"","additional_kwargs":{"refusal":null},"response_metadata":{"token_usage":{"completion_tokens":71,"prompt_tokens":747,"total_tokens":818,"completion_tokens_details":{"accepted_prediction_tokens":null,"audio_tokens":null,"reasoning_tokens":null,"rejected_prediction_tokens":null,"text_tokens":71},"prompt_tokens_details":{"audio_tokens":null,"cache_write_tokens":null,"cached_tokens":null,"image_tokens":null,"text_tokens":747}},"model_provider":"openai","model_name":"qwen3.5-plus","system_fingerprint":null,"id":"chatcmpl-243c2218-0a2a-93a6-9b5f-0991325367fe","finish_reason":"tool_calls","logprobs":null},"type":"ai","name":null,"id":"lc_run--01a11be6-50d7-7871-8b54-ccb9f96f7856-0","tool_calls":[{"name":"query_usage_summary","args":{"metric":"popular_queries","start_date":"2026-10-01","end_date_exclusive":"2026-10-08"},"id":"call_1db333b48ac34ef0a9effbfb","type":"tool_call"}],"invalid_tool_calls":[],"usage_metadata":{"input_tokens":747,"output_tokens":71,"total_tokens":818,"input_token_details":{},"output_token_details":{}}}
+tools
+{"content":"{\"status\": \"ok\", \"metric\": \"popular_queries\", \"start_date\": \"2026-10-01\", \"end_date_exclusive\": \"2026-10-08\", \"timezone\": \"Asia/Shanghai\", \"limit\": 5, \"items\": [{\"key\": \"RAG\", \"count\": 3}, {\"key\": \"ES\", \"count\": 2}, {\"key\": \"Agent\", \"count\": 1}, {\"key\": \"Python\", \"count\": 1}, {\"key\": \"SQL\", \"count\": 1}]}","additional_kwargs":{},"response_metadata":{},"type":"tool","name":"query_usage_summary","id":"f822eaf8-9b35-4dec-824e-2358425174f7","tool_call_id":"call_1db333b48ac34ef0a9effbfb","artifact":null,"status":"success"}
+model
+{"content":"2026年10月1日至7日（含）的热门搜索词前5名及次数如下：\n\n1. **RAG**: 3次\n2. **ES**: 2次\n3. **Agent**: 1次\n4. **Python**: 1次\n5. **SQL**: 1次","additional_kwargs":{"refusal":null},"response_metadata":{"token_usage":{"completion_tokens":71,"prompt_tokens":962,"total_tokens":1033,"completion_tokens_details":{"accepted_prediction_tokens":null,"audio_tokens":null,"reasoning_tokens":null,"rejected_prediction_tokens":null,"text_tokens":71},"prompt_tokens_details":{"audio_tokens":null,"cache_write_tokens":null,"cached_tokens":null,"image_tokens":null,"text_tokens":962}},"model_provider":"openai","model_name":"qwen3.5-plus","system_fingerprint":null,"id":"chatcmpl-9bc7667b-115d-94e4-b8aa-1023655799f0","finish_reason":"stop","logprobs":null},"type":"ai","name":null,"id":"lc_run--01a11be6-6038-75c1-9048-5779d569ab5a-0","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"input_tokens":962,"output_tokens":71,"total_tokens":1033,"input_token_details":{},"output_token_details":{}}}
+2026年10月1日至7日（含）的热门搜索词前5名及次数如下：
+
+1. **RAG**: 3次
+2. **ES**: 2次
+3. **Agent**: 1次
+4. **Python**: 1次
+5. **SQL**: 1次
+{"content":"同一期间，哪些搜索词的记录结果数为零？各有几次？","additional_kwargs":{},"response_metadata":{},"type":"human","name":null,"id":null}
+model
+{"content":"","additional_kwargs":{"refusal":null},"response_metadata":{"token_usage":{"completion_tokens":72,"prompt_tokens":1053,"total_tokens":1125,"completion_tokens_details":{"accepted_prediction_tokens":null,"audio_tokens":null,"reasoning_tokens":null,"rejected_prediction_tokens":null,"text_tokens":72},"prompt_tokens_details":{"audio_tokens":null,"cache_write_tokens":null,"cached_tokens":null,"image_tokens":null,"text_tokens":1053}},"model_provider":"openai","model_name":"qwen3.5-plus","system_fingerprint":null,"id":"chatcmpl-23b6c400-c1b3-9314-b6b0-257587c35273","finish_reason":"tool_calls","logprobs":null},"type":"ai","name":null,"id":"lc_run--01a11be6-69b7-7783-a824-69af6a20790f-0","tool_calls":[{"name":"query_usage_summary","args":{"metric":"zero_result_queries","start_date":"2026-10-01","end_date_exclusive":"2026-10-08"},"id":"call_a29d310efff349148fb6bd91","type":"tool_call"}],"invalid_tool_calls":[],"usage_metadata":{"input_tokens":1053,"output_tokens":72,"total_tokens":1125,"input_token_details":{},"output_token_details":{}}}
+tools
+{"content":"{\"status\": \"ok\", \"metric\": \"zero_result_queries\", \"start_date\": \"2026-10-01\", \"end_date_exclusive\": \"2026-10-08\", \"timezone\": \"Asia/Shanghai\", \"limit\": 5, \"items\": [{\"key\": \"RAG\", \"count\": 2}, {\"key\": \"Agent\", \"count\": 1}, {\"key\": \"ES\", \"count\": 1}]}","additional_kwargs":{},"response_metadata":{},"type":"tool","name":"query_usage_summary","id":"a9fbf351-156c-4547-9e74-af70f30a4de2","tool_call_id":"call_a29d310efff349148fb6bd91","artifact":null,"status":"success"}
+model
+{"content":"在2026年10月1日至7日（含）期间，结果数为零的搜索词记录前5名如下：\n\n1. **RAG**: 2次\n2. **Agent**: 1次\n3. **ES**: 1次\n\n*(注：该时间段内符合口径的记录共3项，已全部列出)*","additional_kwargs":{"refusal":null},"response_metadata":{"token_usage":{"completion_tokens":75,"prompt_tokens":1246,"total_tokens":1321,"completion_tokens_details":{"accepted_prediction_tokens":null,"audio_tokens":null,"reasoning_tokens":null,"rejected_prediction_tokens":null,"text_tokens":75},"prompt_tokens_details":{"audio_tokens":null,"cache_write_tokens":null,"cached_tokens":null,"image_tokens":null,"text_tokens":1246}},"model_provider":"openai","model_name":"qwen3.5-plus","system_fingerprint":null,"id":"chatcmpl-5188c47d-94d3-975d-a3e0-cd76a726cd1b","finish_reason":"stop","logprobs":null},"type":"ai","name":null,"id":"lc_run--01a11be6-75bb-7593-a5fd-29bdb851e856-0","tool_calls":[],"invalid_tool_calls":[],"usage_metadata":{"input_tokens":1246,"output_tokens":75,"total_tokens":1321,"input_token_details":{},"output_token_details":{}}}
+在2026年10月1日至7日（含）期间，结果数为零的搜索词记录前5名如下：
+
+1. **RAG**: 2次
+2. **Agent**: 1次
+3. **ES**: 1次
+
+*(注：该时间段内符合口径的记录共3项，已全部列出)*

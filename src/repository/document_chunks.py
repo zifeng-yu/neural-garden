@@ -2,7 +2,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 
-from src.get_sqlite_connection import get_sqlite_connection
+from src.get_sqlite_connection import get_sqlite_connection, get_sqlite_read_connection
 from src.repository.base_do import BaseDO
 
 TABLE_NAME = "document_chunks"
@@ -85,8 +85,32 @@ def query_by_ids(ids: list[int]) -> list[DocumentChunksDo]:
         return result
 
 
-def query_by_document_id(document_id: int) -> list[DocumentChunksDo]:
+def query_by_id_document_id(id: int, document_id: int) -> DocumentChunksDo | None:
+    if not id or not document_id:
+        return None
     with get_sqlite_connection() as conn:
+        row = conn.execute(
+            f"""
+            select * from {TABLE_NAME} where id = ? and document_id = ?
+            """,
+            (
+                id,
+                document_id,
+            ),
+        ).fetchone()
+
+        if row is None:
+            return None
+
+        data = dict(row)
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+
+    return DocumentChunksDo(**data)
+
+
+def query_by_document_id(document_id: int) -> list[DocumentChunksDo]:
+    with get_sqlite_read_connection() as conn:
         rows = conn.execute(
             f"""
             select * from {TABLE_NAME} where document_id = ?

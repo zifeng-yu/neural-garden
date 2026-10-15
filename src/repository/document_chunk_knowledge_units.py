@@ -131,6 +131,32 @@ def query_by_document_id(document_id: int) -> list[DocumentChunkKnowledgeUnits]:
         return result
 
 
+def query_by_document_id_chunk_id(
+    document_id: int, chunk_id: int
+) -> list[DocumentChunkKnowledgeUnits]:
+    with get_sqlite_connection() as conn:
+        rows = conn.execute(
+            f"""
+            select * from {TABLE_NAME} where document_id = ? and document_chunk_id = ?
+            """,
+            (
+                document_id,
+                chunk_id,
+            ),
+        ).fetchall()
+
+        result = []
+
+        for row in rows:
+            data = dict(row)
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            data["keywords"] = json.loads(data["keywords"])
+            result.append(DocumentChunkKnowledgeUnits(**data))
+
+        return result
+
+
 def _query_by_document_id(
     conn: sqlite3.Connection, document_id: int
 ) -> list[DocumentChunkKnowledgeUnits]:

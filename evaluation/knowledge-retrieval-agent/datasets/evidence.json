@@ -1,0 +1,42 @@
+{
+  "source": "历史运行 report.md 中实际 read_chunk 工具结果",
+  "scope": "只包含记录中已读取的原文片段，不是完整知识库快照",
+  "chunks": [
+    {
+      "status": "found",
+      "source_id": "D1:C4",
+      "document_id": 1,
+      "chunk_id": 4,
+      "content_hash": "6d1aea1bd72f5067c583b7fd0735d5a2",
+      "text": "## Python 实现  \n```python\ndef contains_duplicate(nums):\nseen = set()\nfor num in nums:\nif num in seen:\nreturn True\nseen.add(num)\nreturn False\n\n# 测试\nprint(contains_duplicate([1, 2, 3, 1]))     # True（1 重复了）\nprint(contains_duplicate([1, 2, 3, 4]))     # False（都不重复）\nprint(contains_duplicate([526, 86, 526]))   # True（526 重复）\n```  \n---",
+      "truncated": false
+    },
+    {
+      "status": "found",
+      "source_id": "D1:C3",
+      "document_id": 1,
+      "chunk_id": 3,
+      "content_hash": "20b9aba4ef7711a793c8aeb2c8fff27b",
+      "text": "## 怎么想  \n最直接的办法：拿一个本子，一个一个看。看到一个新的就记下来。如果看到一个\"本子上已经有了\"的 → 有重复。  \n这个\"本子\"在编程里叫 **HashSet（哈希集合）**——它的特点是：存进去的东西，查\"有没有\"只要一瞬间。  \n---",
+      "truncated": false
+    },
+    {
+      "status": "found",
+      "source_id": "D4:C20",
+      "document_id": 4,
+      "chunk_id": 20,
+      "content_hash": "c1fdacf7ac8e1efbbc6f0c9f55ae8b01",
+      "text": "## 狐狸与刺猬  \n为什么？Tetlock 提出一个解释框架，借用古希腊诗人阿奇洛克斯的名言：  \n> \"狐狸知道很多小事，刺猬知道一件大事。\"  \n**刺猬型专家**有一个宏大的理论框架（比如\"历史是阶级斗争的历史\"或\"市场总是有效的\"），他们用这个框架解释一切事件。  \n**狐狸型专家**没有统一理论，他们根据具体情况调整判断，愿意承认不确定性。  \n数据清晰显示：狐狸型专家的预测准确率显著高于刺猬型。",
+      "truncated": false
+    },
+    {
+      "status": "found",
+      "source_id": "D4:C21",
+      "document_id": 4,
+      "chunk_id": 21,
+      "content_hash": "d99eca6b9ca789435acc441b19db5b34",
+      "text": "数据清晰显示：狐狸型专家的预测准确率显著高于刺猬型。  \n但媒体更喜欢刺猬——因为刺猬能说确定的话，能给出清晰的叙事，能在 30 秒的电视采访里说完一个完整的故事。狐狸会说\"这取决于很多因素\"\"我不确定\"\"有两种可能\"，这种话没人爱听。  \n---",
+      "truncated": false
+    }
+  ]
+}

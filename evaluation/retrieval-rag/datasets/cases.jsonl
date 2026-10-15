@@ -1,0 +1,7 @@
+{"id":"q02","query":"会根据具体情况调整判断、承认不确定性的专家属于哪一类？","split":"regression","answerable":true,"expected_answer":"狐狸型专家","gold_chunks":[{"document_id":4,"chunk_id":20,"content_hash":"c1fdacf7ac8e1efbbc6f0c9f55ae8b01"}]}
+{"id":"q01","query":"文中用哪种集合结构检测数组重复元素？","split":"regression","answerable":true,"expected_answer":"HashSet","gold_chunks":[{"document_id":1,"chunk_id":3,"content_hash":"20b9aba4ef7711a793c8aeb2c8fff27b"}]}
+{"id":"q03","query":"资料提到专家预测研究收集了多少位专家、多少条预测？","split":"regression","answerable":true,"expected_answer":"284位专家、超过28000条预测","gold_chunks":[{"document_id":4,"chunk_id":17,"content_hash":"8a69e46e64dc172d6d3fa2f3e70a1f95"}]}
+{"id":"q04","query":"资料能证明每位专家在所有预测类别都不如掷硬币吗？","split":"regression","answerable":true,"expected_answer":"不能。资料描述的是整体预测表现略好于随机，不能据此断言每位专家在所有预测类别都不如掷硬币。","gold_chunks":[{"document_id":4,"chunk_id":19,"content_hash":"e757e7f48162a0878b6e8c68420dac6d"}]}
+{"id":"q05","query":"这项专家研究报告的精确总体准确率是多少百分比？","split":"regression","answerable":false,"expected_answer":"insufficient_evidence","gold_chunks":[]}
+{"id":"q06","query":"日本为什么没人借钱，真正的原因是？","split":"holdout","answerable":true,"expected_answer":"通缩才是真正的原因","gold_chunks":[{"document_id":5,"chunk_id":25,"content_hash":"ab4d2e7c57ea761cead2bc52acf551c0"}]}
+{"id":"q07","query":"纽约尼克斯是否获得了上赛季nba总冠军？","split":"holdout","answerable":false,"expected_answer":"insufficient_evidence","gold_chunks":[]}

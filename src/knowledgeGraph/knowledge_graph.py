@@ -35,7 +35,11 @@ class RelationType(str, Enum):
     """
 
     # doc -> concept 的关系
-    MENTION = "mentions"
+    RELATION_MENTION_VALUE = "mentions"
+
+    RELATION_ID_KEY_NAME = "relation_id"
+
+    RELATION_KEY_NAME = "relation"
 
 
 def build_concept_graph() -> nx.MultiDiGraph:
@@ -56,7 +60,7 @@ def build_concept_graph() -> nx.MultiDiGraph:
         G.add_edge(
             chunk_concept.document_id,
             chunk_concept.normalized_concept,
-            relation=RelationType.MENTION.value,
+            relation=RelationType.RELATION_MENTION_VALUE.value,
         )
 
     for concept_relation in all_concept_relations:
@@ -64,6 +68,7 @@ def build_concept_graph() -> nx.MultiDiGraph:
             concept_relation.source_concept,
             concept_relation.target_concept,
             relation=concept_relation.relation,
+            relation_id=concept_relation.id,
         )
 
     return G

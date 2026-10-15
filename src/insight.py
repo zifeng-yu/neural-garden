@@ -1,5 +1,7 @@
+import logging
 from dataclasses import dataclass
 
+from src.config.logging_config import setup_logging
 from src.embedding.getEmbedding import get_embedding
 from src.knowledgeGraph.concepts_extractor import extract_concepts_from_text
 from src.repository.document_chunk_concepts import (
@@ -21,6 +23,8 @@ from src.vector_store.save_dao import (
     log_insight_collection_count,
 )
 from src.vector_store.save_dao import save_insight as save_insight_chroma
+
+logger = logging.getLogger(__name__)
 
 
 def create_insight(
@@ -64,7 +68,7 @@ def create_insight(
             relation_concepts = extract_concepts_from_text(full_text)
     if document_id is not None:
         source_type = SourceTypeEnum.DOCUMENT
-    return save_insights_sqlite(
+    insight_id = save_insights_sqlite(
         title,
         content,
         action_items,
@@ -77,6 +81,8 @@ def create_insight(
             title, content, action_items, relation_concepts
         ).to_embedding_text(),
     )
+    logger.info("Insight 已保存到 SQLite，insight_id=%s", insight_id)
+    return insight_id
 
 
 @dataclass
@@ -97,6 +103,7 @@ class InsightEmbeddingTextDTO:
 def create_insight_vector(insight_id: int):
     insight_do = query_by_id_insights(insight_id)
     if not insight_do:
+        logger.warning("Insight 不存在，跳过向量写入，insight_id=%s", insight_id)
         return
     insight_embedding_text_dto = InsightEmbeddingTextDTO(
         insight_do.title,
@@ -106,6 +113,7 @@ def create_insight_vector(insight_id: int):
     )
     embedding_result = get_embedding(insight_embedding_text_dto.to_embedding_text())
     if embedding_result is None:
+        logger.error("Insight 向量生成失败，尚未写入 Chroma，insight_id=%s", insight_id)
         return
     insight_dto = InsightDTO(
         str(insight_do.id),
@@ -121,6 +129,7 @@ def create_insight_vector(insight_id: int):
     )
 
     save_insight_chroma(insight_dto)
+    logger.info("Insight 已写入 Chroma，insight_id=%s", insight_id)
     log_insight_collection_count()
 
 
@@ -138,6 +147,7 @@ def user_insight_data(
 
 
 if __name__ == "__main__":
+    setup_logging()
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -165,10 +175,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     import json
 
-    user_insight_data(
-        args.title,
-        args.content,
-        json.loads(args.action_items) if args.action_items else None,
-        json.loads(args.relation_concepts) if args.relation_concepts else None,
-        args.source_title if args.source_title else None,
-    )
+    try:
+        user_insight_data(
+            args.title,
+            args.content,
+            json.loads(args.action_items) if args.action_items else None,
+            json.loads(args.relation_concepts) if args.relation_concepts else None,
+            args.source_title if args.source_title else None,
+        )
+    except Exception:
+        logger.exception("Insight 创建失败")
+        raise
