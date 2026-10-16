@@ -14,6 +14,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 import chromadb
 
@@ -322,6 +323,28 @@ class TestChromaInsight(unittest.TestCase):
         self.assertNotIn("document_chunk_id", result_dict)
         self.assertIn("insight_id", result_dict)
         self.assertIn("source_type", result_dict)
+
+
+class TestExternalConceptThreshold(unittest.TestCase):
+    def test_default_threshold_filters_low_and_boundary_candidates(self):
+        from src.vector_store import query_dao
+
+        collection = Mock()
+        collection.query.return_value = {
+            "documents": [["above", "boundary", "below"]],
+            "distances": [[0.59, 0.6, 0.61]],
+        }
+        with (
+            patch.object(query_dao, "get_collection", return_value=collection),
+            patch.object(query_dao, "get_embedding", return_value=[1.0, 0.0]),
+        ):
+            results = query_dao.search_by_threshold_concept("query", top_k=3)
+            self.assertEqual([r.normalized_concept for r in results], ["above"])
+            # 显式覆盖仍可用于后续阈值对比评估。
+            relaxed = query_dao.search_by_threshold_concept(
+                "query", threshold=0.2, top_k=3
+            )
+            self.assertEqual(len(relaxed), 3)
 
 
 if __name__ == "__main__":

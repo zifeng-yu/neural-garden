@@ -173,11 +173,11 @@ retrieval_mode 支持 vector、bm25、hybrid、graph；query 去除首尾空白�
 
 ## Ubuntu 离线建库
 
-[部署说明与脚本](deploy/ubuntu/README.md) 支持在 `/home/admin/ng_run/` 拉取 Git 代码，安装锁定依赖，先测试 DashScope 的 LLM/Embedding，再建立独立的 SQLite/Chroma 数据集。默认后台运行，不部署 ES；校验通过后生成下载包及校验和。每次运行使用新目录，知识提取失败记录后继续，其他技术异常停止。API Key 放在服务器私有 `.env`，不进入代码或索引结果包。
+[部署说明与脚本](deploy/ubuntu/README.md) 在 `/home/admin/ng_run/` 拉取代码并检查 DashScope。新增 `src/indexer_two_stage.py` 保留原 indexer：第一阶段按文档并发提取并做文档内归一，只保存中间结果和日志，生成评估包后停止；人工评估后手动启动第二阶段，按文件名串行完成文档外归一、SQLite/Chroma 入库和关系证据提取。最终包包含数据库、日志、跳过清单和校验报告，不部署 ES。知识提取失败记录后继续；第一阶段完成等待评估时没有后台 PID 属于正常情况。API Key 保留在服务器私有 `.env`。 云服务器文章由用户上传至 `/home/admin/pilot/`，第一阶段复制为本轮输入快照；`data/pilot/` 不再提交 Git。本地原 indexer 仍使用本地 `data/pilot/`。 文档外概念候选阈值由 `chroma.concept_similarity_threshold` 配置，当前为 `0.4`（余弦相似度严格大于该值）；文档内阈值仍为 `0.2`。
 
 ## 测试与评估
 
-项目通过 pytest、Ruff 和 mypy 进行自动化检查，CI 配置位于 [ci.yml](.github/workflows/ci.yml)。2026-10-16 最新本地工作区验证：**279 项测试通过**，Ruff 检查、格式检查及 mypy 通过。混合检索的集合缺失、已有空集合和图检索的英文概念边界匹配均有回归用例；Ubuntu 部署测试覆盖隔离入库、异常传播、缺向量拦截、SQLite WAL 导出及结果包排除凭据。测试仍有一条 DashScope SDK 的 Assistants API 弃用警告，不影响通过。
+项目通过 pytest、Ruff 和 mypy 进行自动化检查，CI 配置位于 [ci.yml](.github/workflows/ci.yml)。2026-10-16 最新本地工作区验证：**294 项测试通过**，Ruff 检查、格式检查及 mypy 通过。混合检索的集合缺失、已有空集合和图检索的英文概念边界匹配均有回归用例；Ubuntu 部署测试覆盖隔离入库、异常传播、缺向量拦截、SQLite WAL 导出及结果包排除凭据；两阶段测试覆盖并发提取不访问数据库、评估门禁、串行归一可见性、中间数据改动拦截以及阶段间不重复提取。测试仍有一条 DashScope SDK 的 Assistants API 弃用警告，不影响通过。
 
 测试覆盖分块、Repository、向量/BM25/混合检索、图名称匹配与向量回退、一跳扩展与图增强分发、ES 同步、搜索记录事务、RAG 引用与预算、Agent 工具循环、HTTP 契约、指标日期边界及配置加载。测试使用隔离存储和外部调用替身，不调用真实 DashScope 或 ES。
 
@@ -199,7 +199,7 @@ MCP 已有实际连接与独立客户端验证，但尚无持久化的专用协�
 neural-garden/
 ├── config.yaml                    # 模型、存储、检索与运行配置
 ├── pyproject.toml / uv.lock        # 依赖声明与锁定
-├── data/pilot/                    # 示例 Markdown
+├── data/pilot/                    # 本地 Markdown 输入（不提交 Git）
 ├── src/
 │   ├── indexer.py                  # 入库与增量处理
 │   ├── search.py / retrieval/      # 检索分发、向量、BM25、RRF、图检索与增强

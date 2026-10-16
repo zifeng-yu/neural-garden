@@ -1,119 +1,131 @@
-# Ubuntu 离线建库
+# Ubuntu 两阶段离线建库
 
-在 Ubuntu 22.04/24.04 的 x86_64 或 ARM64 服务器上，从 Git 拉取项目，测试 DashScope，再建立 SQLite/Chroma。**不启动、不连接、不同步 Elasticsearch。**
+文档外归一使用 `config.yaml` 的 `chroma.concept_similarity_threshold: 0.4`：只有 `1 - cosine_distance > 0.4` 的候选进入后续判断，最终是否合并仍由 LLM 判定。文档内归一阈值保持 `0.2`。`0.4` 是本轮评估起点，需结合日志中的候选数、匹配率和具体匹配结果评估漏合并情况；归一日志会记录该候选阈值。
 
-默认仓库 `https://github.com/zifeng-yu/neural-garden.git`，分支 `master`。每次抓取分支最新提交，并记录确切 commit。本文中的成功表示技术性校验通过，不保证模型抽取的语义质量。
+新增业务入口 `src/indexer_two_stage.py`，原 `src/indexer.py` 保持原样。只建立 SQLite/Chroma，不启动或连接 ES。
 
-## 上传与运行
+- **第一阶段并发**：doc → chunk → knowledge → concept → 文档内归一。默认 2 个文档线程，单文档内部顺序执行；每个线程同时最多一个 SDK 请求。输出逐文档 JSON 和评估包，**不创建 SQLite/Chroma，不自动启动第二阶段**。
+- **第二阶段串行**：按文章文件名排序，文档外归一 → SQLite 保存 → Knowledge/Concept 向量写入 → 关系提取及证据保存。第一篇从空概念库开始；下一篇能查询前一篇已入库的标准概念。直接消费第一阶段结果，不重跑知识提取、概念提取或文档内归一。
 
-部署包内包含 `run.sh`、`runner.py`、本说明和仅有 `API_KEY` 的私有 `.env`。私有部署包位于本地被 Git 忽略的 `dist/`，不要加入 Git。
+## 上传并运行第一阶段
 
-服务器先创建工作目录。普通用户运行时：
+先将新增业务代码和部署改动 commit/push 到 Git。默认拉取 `https://github.com/zifeng-yu/neural-garden.git` 的 `master`。部署包只带启动脚本和私有 `.env`，不含业务代码。
 
-```bash
-sudo mkdir -p /home/admin/ng_run
-sudo chown "$(id -u):$(id -g)" /home/admin/ng_run
-chmod 700 /home/admin/ng_run
-```
+文章不随 Git 提交。请先创建 `/home/admin/pilot/`，将要处理的 UTF-8 `.md` 文章直接上传到该目录（不递归扫描子目录），上传完成后再启动。默认读取此路径，可通过 `NG_PILOT_DIR` 指定其他绝对路径。
 
-将本地 `dist/ng-ubuntu-run.tar.gz` 上传到服务器，例如：
+第一阶段准备时将文章复制到本轮 `runs/运行编号/project/data/pilot/` 并记录 hash；旧 Git 快照中的 pilot 内容不会混入。第二阶段和结果导出均使用这份快照，之后修改上传目录不会影响本轮。
 
-```bash
-scp dist/ng-ubuntu-run.tar.gz admin@服务器IP:/home/admin/ng_run/
-```
-
-服务器执行：
+重新开始时，保留 `/home/admin/ng_run/tools/`、`.env` 以及外部 `/home/admin/pilot/`。上传本机 `dist/ng-ubuntu-run.tar.gz` 到 `/home/admin/ng_run/` 后执行：
 
 ```bash
 cd /home/admin/ng_run
-tar -xzf ng-ubuntu-run.tar.gz
-bash run.sh
+# 保留已有 .env，只解压脚本和说明。
+tar -xzf ng-ubuntu-run.tar.gz run.sh runner.py status.sh README.md
+bash run.sh phase1 --workers 2
+tail -f /home/admin/ng_run/latest.log
 ```
 
-默认后台运行，断开 SSH 后继续。启动成功不等于建库成功。查看：
+默认后台运行，SSH 断开不影响任务。Ctrl+C 只退出 tail 查看。下载超时默认 300 秒，依赖下载并发默认 4，可通过 UV_HTTP_TIMEOUT/UV_CONCURRENT_DOWNLOADS 覆盖。workers 允许 1–8；并发会增加瞬时 API 请求量，默认用 2，出现限流再调整。复用 tools 的下载缓存，固定使用受管理的 Python 3.12.10；首次可能需要下载该补丁版本。无 sudo 权限时先安装 git/curl/ca-certificates/tar/util-linux/coreutils。
+
+监测命令：
 
 ```bash
-tail -f /home/admin/ng_run/latest.log
+bash /home/admin/ng_run/status.sh
 cat /home/admin/ng_run/latest-run/status.json
+```
+
+阶段状态：prepared、probe_passed → phase1_running → phase1_ready_for_review → **awaiting_phase1_review**。安装依赖时 status.json 尚未生成；看 latest.log。
+
+第一阶段完成后：
+
+```bash
+cat /home/admin/ng_run/latest-run/PHASE1_READY.txt
+```
+
+该文件写明 `exports/phase1-review-运行编号.tar.gz` 的下载路径，旁边有 `.sha256`。**PID 退出在此时属于正常行为，不是失败。**任务不会自动续跑。将评估包下载发给我，检查日志、失败/跳过率、概念和耗时后，再手动执行第二阶段。
+
+评估包包含：logs/app.log、logs/error.log、phase1-report.json、skipped-chunks.json、每篇中间结果 phase1/*.json、pilot 原文、输入 hash、模型探测、代码版本及配置快照。不含 API Key/.env/.venv。phase1-report.json 有每篇 chunk 数、knowledge 数、归一概念数、跳过数、耗时和按固定顺序排列的文件清单。
+
+**不要删除 runs/、tools/ 或 .env，也不要修改本轮 project/config.yaml 和中间结果。**第二阶段需要这些内容。
+
+## 评估确认后，手动运行第二阶段
+
+```bash
+cd /home/admin/ng_run
+bash run.sh phase2
+tail -f /home/admin/ng_run/latest.log
+```
+
+默认继续 latest-run 指向的第一阶段。若存在多轮结果，显式指定已评估的目录更稳妥：
+
+```bash
+bash run.sh phase2 --run /home/admin/ng_run/runs/具体运行编号
+```
+
+第二阶段不拉新代码、不覆盖配置，沿用第一阶段保存的代码、Python 环境和 runner 副本。开始前核对原文 hash、中间文件 hash、跳过记录、配置和依赖锁文件。只有第一阶段完整且评估包已生成，第二阶段才允许启动。人工确认通过“执行 phase2 命令”表达；脚本不会自行判断模型语义质量。
+
+完成后生成 SUCCESS.txt，status.json 为 complete：
+
+```bash
 cat /home/admin/ng_run/latest-run/SUCCESS.txt
 ```
 
-`SUCCESS.txt` 只在校验及打包完成后出现。错误会使脚本非零退出，`FAILED.txt` 标明失败；Python 阶段另有 `failure.json`。失败的工作目录保留，不生成完成的数据包。
+下载 `exports/neural-garden-运行编号[-with-skips].tar.gz` 及 `.sha256`。最终包包含：data/sqlite/neural.db、完整 data/chroma/、data/pilot/、两阶段日志、跳过清单、最终数据校验及第一阶段评估报告。SQLite 使用 backup API 导出，Chroma 在工作进程退出后复制；逐文件校验和写在 SHA256SUMS 中。
 
-若只想先验证环境和网络：
+## 失败及重跑边界
 
-```bash
-bash run.sh --foreground --check-only
-```
+知识提取失败（包含缺少 keywords、JSON 解析错误、模型拒绝和请求异常）记录日志并保留 chunk，继续运行。没有 knowledge 的 chunk 不提取概念。跳过记录用于最终验证，结果包带 -with-skips，需人工评估其影响。
 
-测试会真实调用一次 qwen3.5-plus 和一次 embedding（失败可能重试），使用现有 API Key 的额度。检查成功后再 `bash run.sh` 会新建正式运行目录。锁禁止同一目录内同时启动两个任务。脚本若需要安装系统基础工具，可能在启动时请求 sudo；无 sudo 权限时请先安装 `git curl ca-certificates tar util-linux`。
+概念提取、文档内归一等其他第一阶段错误会将该文档标为失败，其他已提交的文档任务继续完成；最终第一阶段失败，第二阶段被阻止，仍尽量生成 `phase1-review-运行编号-failed.tar.gz` 供诊断。准备环境或探测失败时尚无评估包，直接看 latest.log/FAILED.txt/failure.json。
 
-## 路径与运行方式
+第二阶段 embedding 或关系提取异常仍中止；失败数据保留，不伪装成成功。**目前不自动续跑半成品、不自动清理旧结果**：第一阶段重跑创建新轮次；第二阶段发现已有 data/ 会拒绝追加，避免重复或不完整入库。若第二阶段失败，先保留本轮中间结果和日志，再决定如何从第一阶段结果重建，无需先重新提取全文。
+
+已有 OpenClaw 监控规则需要同步：status=awaiting_phase1_review 且存在 PHASE1_READY.txt、没有活动 PID，是“第一阶段完成、等待评估”；只通知一次评估包路径，不应报“进程消失失败”。phase2_running、indexed、verified 等仍表示后续处理中，只有 SUCCESS.txt 表示最终建库完成。
+
+## 路径和日志
 
 ```text
 /home/admin/ng_run/
-├── .env                        # 私有 API_KEY，权限 600；不作为 shell 执行
-├── run.sh / runner.py
-├── repository.git/             # 只缓存 Git 代码
-├── tools/                      # uv、受管理的 Python、依赖下载缓存
-├── logs/                       # 启动日志
-├── runs/<UTC时间-PID>/
-│   ├── project/                # 指定 commit 的独立副本、.venv、文章
-│   ├── data/sqlite/neural.db
-│   ├── data/chroma/            # knowledge / concept / insight
-│   ├── logs/                   # 项目日志，包括 embedding 耗时
-│   ├── status.json / probe.json / validation.json
-│   ├── skipped-chunks.json     # 模型判为无效的 chunk 清单
-│   └── SUCCESS.txt             # 完成标志及下载路径
-└── exports/                    # 最终 .tar.gz 与 .sha256
+├── .env                       # 私有 API_KEY，权限 600
+├── run.sh / runner.py / status.sh
+├── tools/                     # Python、uv 和依赖缓存
+├── repository.git/            # Git 源码缓存
+├── logs/                      # 启动日志
+├── runs/<运行编号>/
+│   ├── project/               # 固定 commit 的代码、配置、.venv
+│   ├── runner.py              # 本轮部署驱动快照
+│   ├── phase1/*.json          # 文档内归一后、外部归一前的中间数据
+│   ├── phase1-report.json / PHASE1_READY.txt
+│   ├── status.json / skipped-chunks.json / logs/
+│   ├── data/sqlite/neural.db  # 仅第二阶段创建
+│   ├── data/chroma/           # 仅第二阶段创建
+│   └── SUCCESS.txt            # 仅最终校验打包成功后创建
+└── exports/                   # 第一阶段评估包 + 最终索引包
 ```
 
-配置只修改本次 project 副本，所有数据库、日志路径均指向本次 runs 目录。锁定依赖通过 `uv sync --locked --no-dev --python 3.12` 安装。uv 使用[官方安装器](https://docs.astral.sh/uv/getting-started/installation/)，不会复制 Mac 的虚拟环境。
+项目配置中的数据路径都改成本轮绝对路径，不污染其他轮次。日志使用 DEBUG，禁用按大小轮转，保留整轮过程；会增加磁盘占用。SDK 调用设置 180 秒超时，embedding 失败最多尝试 3 次。日志写入时对当前 API Key 脱敏。网络、额度和服务端故障无法预先保证消除。
 
-这是**每次独立全量建立**，不复用现有本地库、不删除旧运行目录、不自动续跑半成品。重跑会重新调用模型并计费；这样避免当前 indexer 的同 hash 跳过机制掩盖失败。默认沿用仓库的概念阈值和分块策略，不做性能调参。
+`INDEX {JSON}` 日志记录阶段起止、source、适用时的 chunk_no/chunk_id、seconds、outcome。LLM 请求记录模型、HTTP 状态、request_id 和接口提供的 token 数。文档外归一记录候选数、是否调用 LLM、是否匹配和是否改名。父阶段耗时包含子阶段，评估时按 stage 分组，不要跨层级相加。并发阶段的总墙钟时间以 phase1-report.json 的 seconds 为准，不能累加各文档耗时当作总时间。
 
-知识提取失败（包括缺少 keywords、解析失败、请求异常和模型判定无效文章）记录异常日志后继续，保留原文 chunk；skipped-chunks.json 记录来源、hash、原因分类和异常类型。缺少 knowledge 不阻断建库和打包，但必须与记录逐项对应，结果包名称带 -with-skips，下载后应复核跳过清单。Embedding 失败或关系结构非法仍会停止，避免输出不一致的索引。
+日志按两类用途分析，可共用 `logs/app.log`：
 
-运行副本使用 DEBUG 日志并禁用按大小轮转，完整保留本轮日志（会增加磁盘占用），用于下载后分析调用耗时和失败原因。日志在写入时脱敏 API Key，最终日志文件包含在结果包和逐文件校验和中。
+- **运行与数据健康（runtime）**：阶段起止、异常类型、HTTP 错误与重试；结合 `status.json`、`failure.json`、`skipped-chunks.json`、`validation.json` 判断整轮是否完成、哪些 chunk 被跳过、SQLite/Chroma 是否一致。`error.log` 是错误级别的副本，不应和 app.log 重复计数。`awaiting_phase1_review` 是正常等待状态；某次 LLM 请求失败或 knowledge 被跳过，不等于整轮失败。
+- **系统评估（evaluation）**：文档/chunk 提取数量、归一前后概念数量、外部候选阈值和命中数、LLM 匹配结果、关系数量及无效端点数、请求耗时和 token 用量。结合第一阶段中间 JSON、原文和最终数据库检查提取与合并质量。结构完整性校验通过不代表语义质量已合格。
 
-SDK HTTP 调用设置 180 秒超时。日志记录失败和 embedding 耗时，不打印 API Key。网络、额度或第三方服务故障不能由脚本保证消除；脚本保证检测失败，不用完成标志掩盖错误。
+`INDEX` 结构化事件带 `log_categories: ["runtime", "evaluation"]`，同一条事件可服务两类分析；按 `stage`、`event`、`outcome` 和具体指标筛选。原有第三方/文本日志仍保留。下载第一阶段评估包或最终结果包即可，不必手动拆分日志。
 
-建库后检查文章集合和原文 hash/分块、SQLite integrity/外键/关联、缺失知识单元与明确跳过记录对应、关系证据端点，以及 SQLite/Chroma 的 ID、文本、metadata、向量。校验进程退出后才复制整个 Chroma 目录，SQLite 使用 backup API 导出，避免遗漏 WAL 数据。建议至少有 4GB 内存和 10GB 可用磁盘，实际资源需求随文章增长；prepare 阶段会要求至少 5GiB 剩余空间。
+建议至少 4GB 内存、10GB 可用磁盘；prepare 要求 5GiB 剩余空间。Git/uv/PyPI/DashScope 需可访问；uv 使用[官方安装器](https://docs.astral.sh/uv/getting-started/installation/)。支持 Ubuntu 22.04/24.04 的 x86_64/ARM64。可通过 NG_BASE_DIR、NG_REPO_URL、NG_BRANCH 更改默认值，私有仓库请先配置凭据，不在 URL 中放 token。
 
-如使用私有仓库，先在服务器配置 Git 凭据；不要把 Git token 拼入仓库 URL。可以用 `NG_REPO_URL`、`NG_BRANCH`、`NG_BASE_DIR` 覆盖默认值；改 origin 时请使用新的工作根目录。
+## 本地使用最终数据
 
-## 下载及本地使用
-
-先从 `SUCCESS.txt` 取得具体文件名，在本机执行：
+下载包后：
 
 ```bash
-scp admin@服务器IP:/home/admin/ng_run/exports/neural-garden-具体时间.tar.gz ./
-scp admin@服务器IP:/home/admin/ng_run/exports/neural-garden-具体时间.tar.gz.sha256 ./
-shasum -a 256 -c neural-garden-具体时间.tar.gz.sha256
+shasum -a 256 -c 具体包名.tar.gz.sha256
 mkdir ng-import
-tar -xzf neural-garden-具体时间.tar.gz -C ng-import
+tar -xzf 具体包名.tar.gz -C ng-import
 cd ng-import
 shasum -a 256 -c SHA256SUMS
 ```
 
-包中有 `data/sqlite/`、完整 `data/chroma/`、`logs/`（本次建库和校验日志，含异常日志）、语料 `data/pilot/`、commit、依赖版本、校验报告和跳过清单；**不含 API Key、.env、.venv**。`server-config.yaml` 仅供溯源，里面是服务器绝对路径，不要覆盖本机配置。
-
-在本机停止所有使用数据库的进程，备份旧数据，按包内 commit/uv.lock 安装相同版本依赖，然后**整体替换** SQLite 和 Chroma 两套数据（不要将 Chroma 合并到旧目录）。先在本地验证读取与搜索；服务器与本机架构不同，Chroma 目录跨平台可用性仍须在目标机实际验证，并保留原包用于恢复。
-
-这是新建语料，ID 会重新分配，本地 ES 必须全量重建：
-
-```bash
-uv run python -m src.es --mode reset
-```
-
-不要用 `upsert` 保留旧 ES 记录。完成本地验证前保留旧数据库备份。
-
-## 日志评估
-
-`logs/app.log` 中的 `INDEX {JSON}` 是结构化阶段日志，记录 start/end、source、适用时的 chunk_no/chunk_id、seconds、outcome 和数量。覆盖单文档、知识/概念提取、内外归一、SQLite 保存、向量写入、关系提取；LLM 每次请求还记录模型、HTTP 状态、request_id 和接口提供的 token 数。
-
-外部归一记录 concept_no/total_concepts、candidates、candidates_with_evidence、llm_called、matched、merged、normalized_concept，可区分没有候选、LLM 不匹配、同名匹配和名称合并。向量阶段 saved 是写入调用数（概念可能重复），不是唯一向量数量；最终数量以 validation.json 为准。知识提取 outcome=skipped 表示保留 chunk 但没有 knowledge。
-
-seconds 使用单调时钟。父阶段耗时包含子阶段，评估时按 stage 分组，不要把所有层级直接相加；llm_attempt 统计每次 HTTP 请求，重试等待等开销计入上层提取阶段。只看到 start 没有 end，可能仍在执行，也可能进程被强制终止，需结合进程和状态文件判断。
-
-新增业务日志位于 src/，需先 commit/push；脚本每次拉取远端代码，单独上传部署包不会替代远端业务代码。已经启动的任务使用本轮代码副本，不会自动应用后续日志改动。
+停止本机数据库使用进程并备份旧数据，使用包内相同 commit/uv.lock，整体替换 SQLite 和 Chroma（不要合并新旧向量目录）。server-config.yaml 是服务器路径快照，不覆盖本机配置。跨平台 Chroma 文件需在目标机验证读取和搜索。新库 ID 会重新分配，本机 ES 使用 `uv run python -m src.es --mode reset` 全量重建，不能用 upsert 保留旧记录。

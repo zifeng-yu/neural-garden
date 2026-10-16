@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import networkx as nx
 
+from src.config.config import CONCEPT_SIMILARITY_THRESHOLD
 from src.embedding.getEmbedding import get_embedding
 from src.knowledgeGraph.concepts_extractor import (
     extract_concepts_from_text,
@@ -64,6 +65,7 @@ def normalized_concept(
             concept=concept,
             concept_no=concept_no,
             total_concepts=len(concepts),
+            candidate_similarity_threshold=CONCEPT_SIMILARITY_THRESHOLD,
         ) as stats:
             # 2. 向量相似度查询
             with index_stage(logger, "concept_candidate_search"):

@@ -17,6 +17,8 @@ chroma:
   concept_table_name: "concept"
   insight_table_name: "insight"
   distance_metric: "cosine"
+  # 文档外归一：仅将余弦相似度大于该值的候选交给 LLM 判断。
+  concept_similarity_threshold: 0.4
 
 pilot_dataset:
   path: "data/pilot"

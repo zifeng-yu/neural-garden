@@ -38,6 +38,7 @@ wheels/
 Thumbs.db
 
 # 向量数据库（自动生成的数据）
+data/pilot/
 data/chroma/
 data/*.db
 data/*.sqlite

@@ -3,6 +3,7 @@ import logging
 from src.config.config import (
     CHROMA_CONCEPT_TABLE_NAME,
     CHROMA_KNOWLEDGE_TABLE_NAME,
+    CONCEPT_SIMILARITY_THRESHOLD,
 )
 from src.embedding.getEmbedding import get_embedding
 from src.get_chroma_collection import get_collection
@@ -31,8 +32,10 @@ def get_by_id_concept(id: str) -> ConceptDTO | None:
 
 
 def search_by_threshold_concept(
-    query: str, threshold: float = 0.2, top_k: int = 1
+    query: str, threshold: float = CONCEPT_SIMILARITY_THRESHOLD, top_k: int = 1
 ) -> list[ConceptDTO]:
+    # 文档外候选过滤；cosine 距离转相似度，沿用严格大于的边界。
+    # 提高阈值可减少低相关候选的 LLM 判断，但不代表候选可以直接合并。
     collection = get_collection(CHROMA_CONCEPT_TABLE_NAME)
     embedding = get_embedding(query)
     if embedding is None:

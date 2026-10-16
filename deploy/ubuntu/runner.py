@@ -28,6 +28,39 @@ def sha256(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def snapshot_pilot(project, source):
+    """Freeze externally uploaded articles; later phases only use this copy."""
+    source = Path(source)
+    if not source.is_absolute() or not source.is_dir():
+        raise RuntimeError("Upload Markdown articles to /home/admin/pilot/ first.")
+    files = sorted(source.glob("*.md"))
+    if not files:
+        raise RuntimeError("pilot must contain top-level .md articles.")
+    if any(p.is_symlink() or not p.is_file() for p in files):
+        raise RuntimeError("pilot must contain regular files, not symbolic links.")
+    if any(not p.read_text(encoding="utf-8").strip() for p in files):
+        raise RuntimeError("pilot must contain non-empty UTF-8 Markdown articles.")
+    expected = {p.name: sha256(p) for p in files}
+    target = project / "data/pilot"
+    if source.resolve() == target.resolve():
+        raise RuntimeError("External pilot source must differ from the run snapshot.")
+    temporary = project / "data/pilot-upload"
+    temporary.mkdir(parents=True, exist_ok=False)
+    for path in files:
+        shutil.copyfile(path, temporary / path.name)
+    copied = {p.name: sha256(p) for p in temporary.glob("*.md")}
+    current = {p.name: sha256(p) for p in source.glob("*.md")}
+    if copied != expected or current != expected:
+        raise RuntimeError("pilot changed while copying; retry after uploads finish.")
+    # Only replace the freshly exported Git copy; never remove the upload source.
+    if target.is_symlink():
+        target.unlink()
+    elif target.exists():
+        shutil.rmtree(target)
+    temporary.rename(target)
+    return sorted(target.glob("*.md"))
+
+
 def configure(project, run, base):
     import yaml
     from dotenv import dotenv_values
@@ -36,6 +69,9 @@ def configure(project, run, base):
         raise RuntimeError("The private .env must contain a non-empty API_KEY.")
     if (run / "data").exists():
         raise RuntimeError("Refusing to prepare over an existing dataset.")
+    if (run / "input-manifest.json").exists():
+        raise RuntimeError("Refusing to replace prepared input snapshots.")
+    files = snapshot_pilot(project, os.environ.get("NG_PILOT_DIR", "/home/admin/pilot"))
     config_path = project / "config.yaml"
     config = yaml.safe_load(config_path.read_text())
     config["dashscope"]["llm_model"] = "qwen3.5-plus"
@@ -49,11 +85,6 @@ def configure(project, run, base):
     config["logging"]["max_bytes"] = 0
     # Only the exported run copy is changed; the Git source cache stays intact.
     config_path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False))
-    files = sorted((project / "data/pilot").glob("*.md"))
-    if not files or any(not p.read_text().strip() for p in files):
-        raise RuntimeError("pilot must contain non-empty UTF-8 Markdown articles.")
-    if any(p.is_symlink() for p in files):
-        raise RuntimeError("pilot must contain regular files, not symbolic links.")
     free = shutil.disk_usage(run).free
     if free < 5 * 1024**3:
         raise RuntimeError(
@@ -485,6 +516,9 @@ def package(project, run, base):
         "commit.txt",
     ):
         shutil.copy2(run / name, export / name)
+    for name in ("phase1-report.json", "phase1-review-manifest.json"):
+        if (run / name).exists():
+            shutil.copy2(run / name, export / name)
     shutil.copy2(project / "uv.lock", export / "uv.lock")
     shutil.copy2(project / "config.yaml", export / "server-config.yaml")
     files = sorted(p for p in export.rglob("*") if p.is_file())
@@ -521,18 +555,134 @@ def package(project, run, base):
     print((run / "SUCCESS.txt").read_text())
 
 
+def staged_runtime(project, run, base, action, workers):
+    """Use the new entry point; never replace the original indexer implementation."""
+    load_runtime(project, run, base)
+    import src.knowledgeGraph.concepts as concepts
+    import src.vector_store.query_dao as queries
+    from src import indexer_two_stage as staged
+
+    # Existing document normalization imports embedding by value. Configure the
+    # aliases once, before starting workers; each call uses its own local state.
+    staged.pipeline.get_embedding = embedding
+    concepts.get_embedding = embedding
+    queries.get_embedding = embedding
+    if action == "phase1":
+        staged.phase1(project, run, workers)
+    else:
+        ready = run / "phase1-review-manifest.json"
+        if not ready.is_file():
+            raise RuntimeError("Phase 1 review package must be created before phase 2")
+        manifest = json.loads(ready.read_text())
+        if manifest["report_sha256"] != sha256(run / "phase1-report.json"):
+            raise RuntimeError("Phase 1 report changed after review packaging")
+        staged.phase2(project, run)
+
+
+def phase1_package(project, run, base):
+    """Export closed phase-1 logs/results, including diagnostics on failed runs."""
+    report_path = run / "phase1-report.json"
+    report: dict[str, Any] = (
+        json.loads(report_path.read_text())
+        if report_path.exists()
+        else {"status": "failed"}
+    )
+    passed = report["status"] == "ready_for_review"
+    if passed:
+        # Validation uses only prepared files. It must not open the database.
+        sys.path.insert(0, str(project))
+        from src.indexer_two_stage import phase1_results
+
+        phase1_results(project, run)
+    export = run / "phase1-export"
+    export.mkdir()
+    for name in ("logs", "phase1"):
+        if (run / name).is_dir():
+            shutil.copytree(run / name, export / name)
+    for name in (
+        "phase1-report.json",
+        "input-manifest.json",
+        "skipped-chunks.json",
+        "probe.json",
+        "commit.txt",
+        "status.json",
+        "failure.json",
+    ):
+        if (run / name).is_file():
+            shutil.copy2(run / name, export / name)
+    shutil.copytree(project / "data/pilot", export / "pilot")
+    shutil.copy2(project / "config.yaml", export / "server-config.yaml")
+    shutil.copy2(project / "uv.lock", export / "uv.lock")
+    (export / "SHA256SUMS").write_text(
+        "".join(
+            f"{sha256(p)}  {p.relative_to(export)}\n"
+            for p in sorted(export.rglob("*"))
+            if p.is_file()
+        )
+    )
+    suffix = "" if passed else "-failed"
+    archive = base / "exports" / f"phase1-review-{run.name}{suffix}.tar.gz"
+    temporary = archive.with_suffix(".gz.partial")
+    with tarfile.open(temporary, "w:gz") as tar:
+        for path in sorted(export.iterdir()):
+            tar.add(path, arcname=path.name)
+    temporary.replace(archive)
+    checksum = sha256(archive)
+    archive.with_suffix(".gz.sha256").write_text(f"{checksum}  {archive.name}\n")
+    if passed:
+        write_json(
+            run / "phase1-review-manifest.json",
+            {
+                "report_sha256": sha256(report_path),
+                "archive": str(archive),
+                "archive_sha256": checksum,
+            },
+        )
+        (run / "PHASE1_READY.txt").write_text(
+            f"Phase 1 complete. Phase 2 has NOT started.\nRun: {run}\n"
+            f"Review archive: {archive}\nSHA256: {checksum}\n"
+            "Download and review phase-1 logs/results before starting phase 2.\n"
+        )
+        write_json(
+            run / "status.json",
+            {
+                "status": "awaiting_phase1_review",
+                "archive": str(archive),
+                "total": len(report["order"]),
+                "skipped_chunks": sum(d["skipped_chunks"] for d in report["documents"]),
+            },
+        )
+    print(f"Phase 1 {'review' if passed else 'failure'} archive: {archive}")
+    print("Phase 2 requires a separate, explicit command; no index database was built.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "action", choices=["prepare", "probe", "index", "verify", "package"]
+        "action",
+        choices=[
+            "prepare",
+            "probe",
+            "index",
+            "verify",
+            "package",
+            "phase1",
+            "phase1-package",
+            "phase2",
+        ],
     )
     for name in ("project", "run", "base"):
         parser.add_argument("--" + name, required=True, type=Path)
+    parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args()
     project, run, base = args.project.resolve(), args.run.resolve(), args.base.resolve()
     try:
         if args.action == "prepare":
             configure(project, run, base)
+        elif args.action in ("phase1", "phase2"):
+            staged_runtime(project, run, base, args.action, args.workers)
+        elif args.action == "phase1-package":
+            phase1_package(project, run, base)
         elif args.action == "package":
             package(project, run, base)
         else:

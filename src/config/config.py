@@ -55,6 +55,9 @@ LLM_RETRY_DELAY = CONFIG["dashscope"]["retry_delay"]
 LLM_RETRY_BACKOFF = CONFIG["dashscope"]["retry_backoff"]
 EXTRACTION_RETRY_ATTEMPTS = CONFIG["dashscope"]["extraction_retry_attempts"]
 CHROMA_DISTANCE_METRIC = CONFIG["chroma"]["distance_metric"]
+CONCEPT_SIMILARITY_THRESHOLD = float(
+    CONFIG["chroma"].get("concept_similarity_threshold", 0.4)
+)
 ES_NUMBER_OF_SHARDS = CONFIG["elasticsearch"]["number_of_shards"]
 ES_NUMBER_OF_REPLICAS = CONFIG["elasticsearch"]["number_of_replicas"]
 AGENT_TEMPERATURE = CONFIG["agent"]["temperature"]

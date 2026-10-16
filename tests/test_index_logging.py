@@ -26,6 +26,7 @@ def test_nested_stage_identity_does_not_leak_to_next_document(caplog):
     assert finished[0]["source"] == "first.md"
     assert finished[0]["chunk_no"] == 2
     assert finished[0]["outcome"] == "skipped"
+    assert finished[0]["log_categories"] == ["runtime", "evaluation"]
     assert finished[1]["outcome"] == "ok"
     assert "chunk_no" not in finished[2]
     assert finished[2]["source"] == "second.md"

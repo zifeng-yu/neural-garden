@@ -32,7 +32,7 @@ jobs:
         run: uv run ruff format --check src tests deploy/ubuntu/runner.py
 
       - name: Ubuntu launcher syntax
-        run: bash -n deploy/ubuntu/run.sh
+        run: bash -n deploy/ubuntu/run.sh deploy/ubuntu/status.sh
 
       - name: Type check
         run: uv run mypy src tests deploy/ubuntu/runner.py

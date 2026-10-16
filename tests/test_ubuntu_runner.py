@@ -319,7 +319,11 @@ def test_configure_uses_absolute_isolated_paths(tmp_path, monkeypatch):
     project = tmp_path / "runs/new/project"
     run = project.parent
     (project / "data/pilot").mkdir(parents=True)
-    (project / "data/pilot/one.md").write_text("article")
+    (project / "data/pilot/old-git-article.md").write_text("old Git article")
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    (uploads / "one.md").write_text("article")
+    monkeypatch.setenv("NG_PILOT_DIR", str(uploads))
     (tmp_path / ".env").write_text("API_KEY=private-test-key\n")
     (project / "config.yaml").write_text(
         (Path(__file__).parents[1] / "config.yaml").read_text()
@@ -335,6 +339,28 @@ def test_configure_uses_absolute_isolated_paths(tmp_path, monkeypatch):
     assert config["dashscope"]["llm_model"] == "qwen3.5-plus"
     assert not (project / ".env").exists()
     assert "private-test-key" not in (project / "config.yaml").read_text()
+    assert sorted(p.name for p in (project / "data/pilot").iterdir()) == ["one.md"]
+    assert list(runner.check_inputs(project, run)) == ["one.md"]
+    (uploads / "one.md").write_text("later upload")
+    assert (project / "data/pilot/one.md").read_text() == "article"
+    assert list(runner.check_inputs(project, run)) == ["one.md"]
+    with pytest.raises(RuntimeError, match="prepared input snapshots"):
+        runner.configure(project, run, tmp_path)
+
+
+@pytest.mark.parametrize("kind", ["missing", "empty", "blank", "symlink"])
+def test_snapshot_rejects_invalid_uploads(tmp_path, kind):
+    uploads = tmp_path / "uploads"
+    if kind != "missing":
+        uploads.mkdir()
+    if kind == "blank":
+        (uploads / "one.md").write_text("  \n")
+    if kind == "symlink":
+        (tmp_path / "original.md").write_text("article")
+        (uploads / "one.md").symlink_to(tmp_path / "original.md")
+    with pytest.raises(RuntimeError):
+        runner.snapshot_pilot(tmp_path / "project", uploads)
+    assert not (tmp_path / "project/data/pilot").exists()
 
 
 def test_cli_failure_records_failed_status_and_redacts_key(sample, monkeypatch):

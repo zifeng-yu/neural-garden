@@ -16,6 +16,8 @@ _context: ContextVar[dict[str, Any] | None] = ContextVar(
 def _emit(logger: logging.Logger, event: dict[str, Any]) -> None:
     # Observability must not fail a model call or replace its original exception.
     try:
+        # 同一阶段事件同时服务于运行排障和离线评估，避免重复写两份日志。
+        event = {**event, "log_categories": ["runtime", "evaluation"]}
         logger.log(
             logging.ERROR if event.get("outcome") == "failed" else logging.INFO,
             "INDEX %s",
