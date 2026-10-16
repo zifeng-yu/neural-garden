@@ -8,8 +8,9 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     env:
-      # Keep sync and all uv run steps on the same supported Python minor version.
-      UV_PYTHON: "3.12"
+      # Pin the patch version too: Ubuntu's system 3.12.3 is below >=3.12.10.
+      UV_PYTHON: "3.12.10"
+      UV_PYTHON_PREFERENCE: only-managed
 
     steps:
       - name: Checkout
@@ -17,6 +18,9 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
+
+      - name: Install Python
+        run: uv python install "$UV_PYTHON"
 
       - name: Sync dependencies
         run: uv sync --locked
