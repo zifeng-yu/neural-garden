@@ -72,7 +72,9 @@ bash run.sh --foreground --check-only
 
 这是**每次独立全量建立**，不复用现有本地库、不删除旧运行目录、不自动续跑半成品。重跑会重新调用模型并计费；这样避免当前 indexer 的同 hash 跳过机制掩盖失败。默认沿用仓库的概念阈值和分块策略，不做性能调参。
 
-技术性知识提取失败直接中止；embedding 最多尝试 3 次，关系返回结构不合法也中止。只有 `ContentNotExtrator`（模型明确判定无效文章）允许跳过：保留原文，记录 hash 和块号，生成包名称带 `-with-skips`。这些跳过不代表原文确实无效，应下载后复核。
+知识提取失败（包括缺少 keywords、解析失败、请求异常和模型判定无效文章）记录异常日志后继续，保留原文 chunk；skipped-chunks.json 记录来源、hash、原因分类和异常类型。缺少 knowledge 不阻断建库和打包，但必须与记录逐项对应，结果包名称带 -with-skips，下载后应复核跳过清单。Embedding 失败或关系结构非法仍会停止，避免输出不一致的索引。
+
+运行副本使用 DEBUG 日志并禁用按大小轮转，完整保留本轮日志（会增加磁盘占用），用于下载后分析调用耗时和失败原因。日志在写入时脱敏 API Key，最终日志文件包含在结果包和逐文件校验和中。
 
 SDK HTTP 调用设置 180 秒超时。日志记录失败和 embedding 耗时，不打印 API Key。网络、额度或第三方服务故障不能由脚本保证消除；脚本保证检测失败，不用完成标志掩盖错误。
 
@@ -94,7 +96,7 @@ cd ng-import
 shasum -a 256 -c SHA256SUMS
 ```
 
-包中有 `data/sqlite/`、完整 `data/chroma/`、语料 `data/pilot/`、commit、依赖版本、校验报告和跳过清单；**不含 API Key、.env、.venv**。`server-config.yaml` 仅供溯源，里面是服务器绝对路径，不要覆盖本机配置。
+包中有 `data/sqlite/`、完整 `data/chroma/`、`logs/`（本次建库和校验日志，含异常日志）、语料 `data/pilot/`、commit、依赖版本、校验报告和跳过清单；**不含 API Key、.env、.venv**。`server-config.yaml` 仅供溯源，里面是服务器绝对路径，不要覆盖本机配置。
 
 在本机停止所有使用数据库的进程，备份旧数据，按包内 commit/uv.lock 安装相同版本依赖，然后**整体替换** SQLite 和 Chroma 两套数据（不要将 Chroma 合并到旧目录）。先在本地验证读取与搜索；服务器与本机架构不同，Chroma 目录跨平台可用性仍须在目标机实际验证，并保留原包用于恢复。
 
@@ -105,3 +107,13 @@ uv run python -m src.es --mode reset
 ```
 
 不要用 `upsert` 保留旧 ES 记录。完成本地验证前保留旧数据库备份。
+
+## 日志评估
+
+`logs/app.log` 中的 `INDEX {JSON}` 是结构化阶段日志，记录 start/end、source、适用时的 chunk_no/chunk_id、seconds、outcome 和数量。覆盖单文档、知识/概念提取、内外归一、SQLite 保存、向量写入、关系提取；LLM 每次请求还记录模型、HTTP 状态、request_id 和接口提供的 token 数。
+
+外部归一记录 concept_no/total_concepts、candidates、candidates_with_evidence、llm_called、matched、merged、normalized_concept，可区分没有候选、LLM 不匹配、同名匹配和名称合并。向量阶段 saved 是写入调用数（概念可能重复），不是唯一向量数量；最终数量以 validation.json 为准。知识提取 outcome=skipped 表示保留 chunk 但没有 knowledge。
+
+seconds 使用单调时钟。父阶段耗时包含子阶段，评估时按 stage 分组，不要把所有层级直接相加；llm_attempt 统计每次 HTTP 请求，重试等待等开销计入上层提取阶段。只看到 start 没有 end，可能仍在执行，也可能进程被强制终止，需结合进程和状态文件判断。
+
+新增业务日志位于 src/，需先 commit/push；脚本每次拉取远端代码，单独上传部署包不会替代远端业务代码。已经启动的任务使用本轮代码副本，不会自动应用后续日志改动。

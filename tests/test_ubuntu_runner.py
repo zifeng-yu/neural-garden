@@ -110,7 +110,7 @@ def test_embedding_failure_is_retried_then_propagated(monkeypatch):
     assert len(calls) == 3
 
 
-def test_strict_extraction_only_allows_model_invalid_chunks(tmp_path, monkeypatch):
+def test_extraction_failures_are_recorded_and_skipped(tmp_path, monkeypatch):
     import src.indexer as indexer
     import src.knowledge.knowledge_extractor as extractor
     import src.knowledgeGraph.concepts as concepts
@@ -137,9 +137,10 @@ def test_strict_extraction_only_allows_model_invalid_chunks(tmp_path, monkeypatc
         raise TimeoutError("network error")
 
     monkeypatch.setattr(extractor, "extractor_by_llm", technical)
-    strict, _ = runner.install_strict_indexer(tmp_path)
-    with pytest.raises(TimeoutError):
-        strict.extract_knowledge_unit("内容", "filename:a.md,splitNo:1")
+    strict, skips = runner.install_strict_indexer(tmp_path)
+    assert strict.extract_knowledge_unit("内容", "filename:a.md,splitNo:1") is None
+    assert skips[0]["reason"] == "extraction_failed"
+    assert skips[0]["error_type"] == "TimeoutError"
 
 
 def test_package_preserves_wal_and_excludes_credentials(sample):
@@ -154,6 +155,9 @@ def test_package_preserves_wal_and_excludes_credentials(sample):
     (sample.run / "data/chroma").mkdir()
     (sample.run / "data/chroma/segment.bin").write_bytes(b"segment")
     (sample.base / "exports").mkdir()
+    (sample.run / "logs").mkdir()
+    (sample.run / "logs/app.log").write_text("Embedding seconds=0.42\n")
+    (sample.run / "logs/error.log").write_text("Knowledge extraction failed\n")
     conn = sqlite3.connect(sample.db)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -167,6 +171,9 @@ def test_package_preserves_wal_and_excludes_credentials(sample):
         assert not any(".env" in name or ".venv" in name for name in tar.getnames())
         assert "data/chroma/segment.bin" in tar.getnames()
         assert "SHA256SUMS" in tar.getnames()
+        assert tar.extractfile("logs/app.log").read() == b"Embedding seconds=0.42\n"
+        assert "logs/error.log" in tar.getnames()
+        assert b"logs/app.log" in tar.extractfile("SHA256SUMS").read()
     with sqlite3.connect(sample.run / "export/data/sqlite/neural.db") as conn:
         assert (
             conn.execute("SELECT file_name_hash FROM documents").fetchone()[0]
@@ -282,18 +289,28 @@ def test_missing_chroma_payload_is_rejected(fresh_build, monkeypatch, field):
     assert not (fresh_build.run / "validation.json").exists()
 
 
-def test_failed_model_call_cannot_finish_build(fresh_build, monkeypatch):
+@pytest.mark.parametrize("failure_kind", ["timeout", "missing_keywords"])
+def test_failed_extraction_keeps_chunk_and_finishes(
+    fresh_build, monkeypatch, failure_kind
+):
     def fail(text):
-        raise TimeoutError("SDK timeout")
+        if failure_kind == "timeout":
+            raise TimeoutError("SDK timeout")
+        return fresh_build.extractor.Response_extractor.model_validate(
+            {"title": "标题", "summary": "摘要"}
+        )
 
     monkeypatch.setattr(fresh_build.extractor, "extractor_by_llm", fail)
-    with pytest.raises(TimeoutError):
-        runner.build(fresh_build.project, fresh_build.run)
-    assert (
-        json.loads((fresh_build.run / "status.json").read_text())["status"]
-        == "indexing"
+    runner.build(fresh_build.project, fresh_build.run)
+    runner.verify(fresh_build.project, fresh_build.run)
+    report = json.loads((fresh_build.run / "validation.json").read_text())
+    assert report["status"] == "verified_with_skips"
+    assert report["counts"]["document_chunks"] == 1
+    assert report["counts"]["document_chunk_knowledge_units"] == 0
+    assert report["skipped_chunks"][0]["reason"] == "extraction_failed"
+    assert report["skipped_chunks"][0]["error_type"] == (
+        "TimeoutError" if failure_kind == "timeout" else "ValidationError"
     )
-    assert not (fresh_build.run / "validation.json").exists()
 
 
 def test_configure_uses_absolute_isolated_paths(tmp_path, monkeypatch):

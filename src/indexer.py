@@ -81,6 +81,7 @@ from src.repository.relation_evidence import (
     query_by_relation_id as query_by_relation_id_relation_evidence,
 )
 from src.util.getHashValue import get_hash_value as hash
+from src.util.index_logging import index_stage
 from src.vector_store.delete_dao import (
     delete_by_id_knowledge as delete_by_id_knowledge_chroma,
 )
@@ -282,144 +283,207 @@ def index_file(file_path: str):
     content = load_document(file_path)
     source = os.path.basename(file_path)
 
-    logger.info(f"📄 正在索引：{source}")
+    with index_stage(logger, "document", source=source) as document_stats:
+        logger.info(f"📄 正在索引：{source}")
 
-    # 2. 查询是否有记录
-    file_name_hash = hash(source)
-    content_hash = hash(content)
-    action = process_file(content_hash, file_name_hash, source)
+        # 2. 查询是否有记录
+        file_name_hash = hash(source)
+        content_hash = hash(content)
+        action = process_file(content_hash, file_name_hash, source)
 
-    if action != "need_del" and action != "need_new":
-        return
+        document_stats["action"] = action
+        if action != "need_del" and action != "need_new":
+            return
 
-    # 1. docDO
-    insert_doc = InsertDoc(source, file_name_hash, content_hash)
-    # 2. chunk
-    chunks = markdown_spilt(content)
-    if chunks is None:
-        return
-    # 组insert对象
-    insert_chunks = []
-    split_no = 1
-    for chunk in chunks:
-        # 3 获取知识单元 - 这里从chunk来获取
-        knowledgeUnit = extract_knowledge_unit(
-            content=chunk, id=f"filename:{source},splitNo:{split_no}"
-        )
-        insert_chunk = InsertChunk(split_no, chunk, hash(chunk))
-        split_no += 1
-        if knowledgeUnit is None:
-            logger.info(f"知识提取失败，source {source}")
-            insert_chunks.append(insert_chunk)
-            continue
-        insert_chunk.know_unit = InsertKnowledgeUnit(
-            knowledgeUnit.title,
-            knowledgeUnit.summary,
-            knowledgeUnit.keywords,
-            knowledgeUnit.to_embedding_text(),
-        )
-        # 4 concept
-        get_concepts = documents_to_concepts(knowledgeUnit.title, chunk)
-        if get_concepts:
-            insert_concepts = [InsertConcepts(x, x, hash(x)) for x in get_concepts]
-            insert_chunk.concepts = insert_concepts
-
-        insert_chunks.append(insert_chunk)
-
-    logger.info(f"归一前 数据 {[a.concepts for a in insert_chunks]}")
-    # 文档内部概念聚集（归一）
-    concept_clustering_in_document(insert_chunks)
-    logger.info(f"内部归一后 数据 {[a.concepts for a in insert_chunks]}")
-    # 文档外部概念聚聚（归一）
-    normalized_concept(insert_chunks)
-    logger.info(f"外部归一后 数据 {[a.concepts for a in insert_chunks]}")
-
-    save_db_result = save_documents_domain(
-        InsertDocumentDomain(insert_doc, insert_chunks)
-    )
-
-    logger.info(f"save_db_result {save_db_result}")
-
-    # 保存knowledgeUnit chromaDB
-    if "knowledge_unit_ids" in save_db_result:
-        knowledgeUnit_ids = save_db_result["knowledge_unit_ids"]
-        knowledgeUnit_list = query_by_ids_knowunit(knowledgeUnit_ids)
-        if knowledgeUnit_list:
-            for unit in knowledgeUnit_list:
-                get_embedding_result = get_embedding(unit.embedding_text)
-                if not get_embedding_result:
-                    continue
-                save_knowlege(
-                    KnowledgeUnitDTO(
-                        str(unit.id),
-                        get_embedding_result,
-                        unit.embedding_text,
-                        KnowledgeUnitMetadata(
-                            source,
-                            unit.document_id,
-                            unit.document_chunk_id,
-                            unit.title,
-                            unit.keywords,
-                        ),
-                    )
+        # 1. docDO
+        insert_doc = InsertDoc(source, file_name_hash, content_hash)
+        # 2. chunk
+        chunks = markdown_spilt(content)
+        if chunks is None:
+            return
+        logger.info("Document chunks source=%s chunks=%d", source, len(chunks))
+        # 组insert对象
+        insert_chunks = []
+        split_no = 1
+        for chunk in chunks:
+            # 3 获取知识单元 - 这里从chunk来获取
+            with index_stage(
+                logger, "knowledge_extract", chunk_no=split_no, chars=len(chunk)
+            ) as stats:
+                knowledgeUnit = extract_knowledge_unit(
+                    content=chunk, id=f"filename:{source},splitNo:{split_no}"
                 )
-    # 保存 concept chromaDB
-    if "document_id" in save_db_result:
-        documentDO = query_by_id_document(save_db_result["document_id"])
-        if documentDO:
-            document_chunk_concepts_dolist = query_by_document_id_chunk_concetps(
-                documentDO.id
+                stats["outcome"] = "skipped" if knowledgeUnit is None else "ok"
+            insert_chunk = InsertChunk(split_no, chunk, hash(chunk))
+            split_no += 1
+            if knowledgeUnit is None:
+                logger.warning(
+                    "Knowledge missing; retaining chunk source=%s chunk_no=%d",
+                    source,
+                    insert_chunk.split_no,
+                )
+                insert_chunks.append(insert_chunk)
+                continue
+            insert_chunk.know_unit = InsertKnowledgeUnit(
+                knowledgeUnit.title,
+                knowledgeUnit.summary,
+                knowledgeUnit.keywords,
+                knowledgeUnit.to_embedding_text(),
             )
-            for document_chunk_concepts_do in document_chunk_concepts_dolist:
-                get_embedding_result = get_embedding(
-                    document_chunk_concepts_do.normalized_concept
-                )
-                if not get_embedding_result:
-                    continue
-                save_concept(
-                    ConceptDTO(
-                        document_chunk_concepts_do.normalized_concept_hash,
-                        get_embedding_result,
-                        document_chunk_concepts_do.normalized_concept,
-                    )
-                )
+            # 4 concept
+            with index_stage(
+                logger, "concept_extract", chunk_no=insert_chunk.split_no
+            ) as stats:
+                get_concepts = documents_to_concepts(knowledgeUnit.title, chunk)
+                if get_concepts:
+                    insert_concepts = [
+                        InsertConcepts(x, x, hash(x)) for x in get_concepts
+                    ]
+                    insert_chunk.concepts = insert_concepts
 
-    log_concept_collection_size()
-    log_knowledgeUnit_collection_size()
+                stats["concepts"] = len(get_concepts or [])
+            insert_chunks.append(insert_chunk)
 
-    # 建立chunk内部概念连接
-    if "chunk_ids" in save_db_result:
-        chunks_do = query_by_id_chunks(save_db_result["chunk_ids"])
-        if chunks_do:
-            for chunk_do in chunks_do:
-                concept_dos = query_by_chunk_id(chunk_do.id)
-                if concept_dos:
-                    chunk_content = chunk_do.content
-                    concepts = [x.normalized_concept for x in concept_dos]
-                    chunk_concept_relations = extract_relations_from_text(
-                        chunk_content, concepts
-                    )
-                    if chunk_concept_relations is None:
-                        continue
-                    for (
-                        concept_source,
-                        realtion,
-                        concept_target,
-                    ) in chunk_concept_relations:
-                        if concept_source in concepts and concept_target in concepts:
-                            concept_realtion_id = insert_concept_relation(
-                                concept_source,
-                                concept_target,
-                                realtion,
-                                RelationType.DOCUMENT_INTERNAL,
+        document_stats["chunks"] = len(insert_chunks)
+        document_stats["knowledge"] = sum(
+            x.know_unit is not None for x in insert_chunks
+        )
+        document_stats["knowledge_skipped"] = (
+            len(insert_chunks) - document_stats["knowledge"]
+        )
+        logger.info(f"归一前 数据 {[a.concepts for a in insert_chunks]}")
+        # 文档内部概念聚集（归一）
+        with index_stage(logger, "normalize_internal"):
+            concept_clustering_in_document(insert_chunks)
+        logger.info(f"内部归一后 数据 {[a.concepts for a in insert_chunks]}")
+        # 文档外部概念聚聚（归一）
+        with index_stage(logger, "normalize_external"):
+            normalized_concept(insert_chunks)
+        logger.info(f"外部归一后 数据 {[a.concepts for a in insert_chunks]}")
+
+        with index_stage(logger, "sqlite_save"):
+            save_db_result = save_documents_domain(
+                InsertDocumentDomain(insert_doc, insert_chunks)
+            )
+
+        logger.info(f"save_db_result {save_db_result}")
+
+        with index_stage(
+            logger, "knowledge_vectors", saved=0, missing=0
+        ) as vector_stats:
+            # 保存knowledgeUnit chromaDB
+            if "knowledge_unit_ids" in save_db_result:
+                knowledgeUnit_ids = save_db_result["knowledge_unit_ids"]
+                knowledgeUnit_list = query_by_ids_knowunit(knowledgeUnit_ids)
+                if knowledgeUnit_list:
+                    for unit in knowledgeUnit_list:
+                        get_embedding_result = get_embedding(unit.embedding_text)
+                        if not get_embedding_result:
+                            vector_stats["missing"] += 1
+                            logger.warning(
+                                "Vector missing source=%s stage=%s",
+                                source,
+                                vector_stats["stage"],
                             )
-                            if concept_realtion_id is not None:
-                                insert_relation_evidence(
-                                    concept_realtion_id,
-                                    chunk_do.document_id,
-                                    chunk_do.id,
-                                    EvidenceRoleEnum.BOTH,
+                            continue
+                        save_knowlege(
+                            KnowledgeUnitDTO(
+                                str(unit.id),
+                                get_embedding_result,
+                                unit.embedding_text,
+                                KnowledgeUnitMetadata(
+                                    source,
+                                    unit.document_id,
+                                    unit.document_chunk_id,
+                                    unit.title,
+                                    unit.keywords,
+                                ),
+                            )
+                        )
+                        vector_stats["saved"] += 1
+        with index_stage(logger, "concept_vectors", saved=0, missing=0) as vector_stats:
+            # 保存 concept chromaDB
+            if "document_id" in save_db_result:
+                documentDO = query_by_id_document(save_db_result["document_id"])
+                if documentDO:
+                    document_chunk_concepts_dolist = (
+                        query_by_document_id_chunk_concetps(documentDO.id)
+                    )
+                    for document_chunk_concepts_do in document_chunk_concepts_dolist:
+                        get_embedding_result = get_embedding(
+                            document_chunk_concepts_do.normalized_concept
+                        )
+                        if not get_embedding_result:
+                            vector_stats["missing"] += 1
+                            logger.warning(
+                                "Vector missing source=%s stage=%s",
+                                source,
+                                vector_stats["stage"],
+                            )
+                            continue
+                        save_concept(
+                            ConceptDTO(
+                                document_chunk_concepts_do.normalized_concept_hash,
+                                get_embedding_result,
+                                document_chunk_concepts_do.normalized_concept,
+                            )
+                        )
+
+                        vector_stats["saved"] += 1
+        log_concept_collection_size()
+        log_knowledgeUnit_collection_size()
+
+        with index_stage(logger, "relations"):
+            # 建立chunk内部概念连接
+            if "chunk_ids" in save_db_result:
+                chunks_do = query_by_id_chunks(save_db_result["chunk_ids"])
+                if chunks_do:
+                    for chunk_do in chunks_do:
+                        concept_dos = query_by_chunk_id(chunk_do.id)
+                        if concept_dos:
+                            chunk_content = chunk_do.content
+                            concepts = [x.normalized_concept for x in concept_dos]
+                            with index_stage(
+                                logger,
+                                "relation_extract",
+                                chunk_id=chunk_do.id,
+                                concepts=len(concepts),
+                            ) as relation_stats:
+                                chunk_concept_relations = extract_relations_from_text(
+                                    chunk_content, concepts
                                 )
+                                relation_stats["relations"] = len(
+                                    chunk_concept_relations or []
+                                )
+                                relation_stats["outcome"] = (
+                                    "skipped"
+                                    if chunk_concept_relations is None
+                                    else "ok"
+                                )
+                            if chunk_concept_relations is None:
+                                continue
+                            for (
+                                concept_source,
+                                realtion,
+                                concept_target,
+                            ) in chunk_concept_relations:
+                                if (
+                                    concept_source in concepts
+                                    and concept_target in concepts
+                                ):
+                                    concept_realtion_id = insert_concept_relation(
+                                        concept_source,
+                                        concept_target,
+                                        realtion,
+                                        RelationType.DOCUMENT_INTERNAL,
+                                    )
+                                    if concept_realtion_id is not None:
+                                        insert_relation_evidence(
+                                            concept_realtion_id,
+                                            chunk_do.document_id,
+                                            chunk_do.id,
+                                            EvidenceRoleEnum.BOTH,
+                                        )
 
 
 def index_directory(dir_path: str):

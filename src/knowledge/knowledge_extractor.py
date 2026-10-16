@@ -17,6 +17,7 @@ from src.config.config import (
     LLM_TEMPERATURE,
     get_dashscope_api_key,
 )
+from src.util.index_logging import index_stage
 from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
@@ -65,17 +66,26 @@ def extractor_by_llm(content: str) -> Response_extractor:
     prompt.append(system_prompt)
     prompt.append(user_prompt)
     dashscope.api_key = get_dashscope_api_key()
-    response = cast(
-        MultiModalConversationResponse,
-        MultiModalConversation.call(
-            model=LLM_MODEL,
-            messages=prompt,
-            temperature=LLM_TEMPERATURE,
-            enable_thinking=LLM_ENABLE_THINKING,
-            response_format={"type": "json_object"},
-            stream=False,
-        ),
-    )
+    with index_stage(logger, "llm_attempt", model=LLM_MODEL) as call_stats:
+        response = cast(
+            MultiModalConversationResponse,
+            MultiModalConversation.call(
+                model=LLM_MODEL,
+                messages=prompt,
+                temperature=LLM_TEMPERATURE,
+                enable_thinking=LLM_ENABLE_THINKING,
+                response_format={"type": "json_object"},
+                stream=False,
+            ),
+        )
+        call_stats["http_status"] = response.status_code
+        call_stats["outcome"] = "ok" if response.status_code == 200 else "failed"
+        call_stats["request_id"] = getattr(response, "request_id", None)
+        usage = getattr(response, "usage", None)
+        if isinstance(usage, dict):
+            for token_field in ("input_tokens", "output_tokens", "total_tokens"):
+                if isinstance(usage.get(token_field), int):
+                    call_stats[token_field] = usage[token_field]
     if response.status_code != 200:
         raise LLMException(f"{response.status_code}:{response.message}")
     llm_result_content: list[dict[str, Any]] = cast(

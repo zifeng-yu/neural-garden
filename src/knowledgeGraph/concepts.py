@@ -19,6 +19,7 @@ from src.repository.document_chunk_concepts import (
 from src.repository.document_chunks import query_by_ids as query_by_ids_chunks
 from src.repository.document_insert_domain import InsertChunk
 from src.util.getHashValue import get_hash_value as hash
+from src.util.index_logging import index_stage
 from src.util.similarity import calculate_similarity
 from src.vector_store.query_dao import search_by_threshold_concept
 
@@ -56,39 +57,59 @@ def normalized_concept(
     concepts = [x for x in concept_chunk_dict]
     # 1. 归一
     concept_normalized_dict = {}
-    for concept in concepts:
-        # 2. 向量相似度查询
-        concept_results_similarity = search_by_threshold_concept(query=concept)
-        normalized_concept_result = concept
-        if concept_results_similarity:
-            # sqlite查询
-            similarity_concepts = []
-            for x in concept_results_similarity:
-                # 3. llm最后判断
-                query_by_normalized_concept_result = query_by_normalized_concept(
-                    x.normalized_concept
-                )
-                if query_by_normalized_concept_result:
-                    chunks = query_by_ids_chunks(
-                        [
-                            conceptDO.document_chunk_id
-                            for conceptDO in query_by_normalized_concept_result
-                        ]
+    for concept_no, concept in enumerate(concepts, 1):
+        with index_stage(
+            logger,
+            "normalize_concept",
+            concept=concept,
+            concept_no=concept_no,
+            total_concepts=len(concepts),
+        ) as stats:
+            # 2. 向量相似度查询
+            with index_stage(logger, "concept_candidate_search"):
+                concept_results_similarity = search_by_threshold_concept(query=concept)
+            stats["candidates"] = len(concept_results_similarity or [])
+            stats["llm_called"] = bool(concept_results_similarity)
+            normalized_concept_result = concept
+            if concept_results_similarity:
+                # sqlite查询
+                similarity_concepts = []
+                for x in concept_results_similarity:
+                    # 3. llm最后判断
+                    query_by_normalized_concept_result = query_by_normalized_concept(
+                        x.normalized_concept
                     )
-                    similarity_concepts.append(
-                        (x.normalized_concept, [chunk.content for chunk in chunks])
+                    if query_by_normalized_concept_result:
+                        chunks = query_by_ids_chunks(
+                            [
+                                conceptDO.document_chunk_id
+                                for conceptDO in query_by_normalized_concept_result
+                            ]
+                        )
+                        similarity_concepts.append(
+                            (x.normalized_concept, [chunk.content for chunk in chunks])
+                        )
+                stats["candidates_with_evidence"] = len(similarity_concepts)
+                with index_stage(logger, "concept_match_llm"):
+                    max_similarity_concepts = extract_max_similarity_concept(
+                        concept=(concept, concept_chunk_dict[concept]),
+                        similarity_concepts=similarity_concepts,
                     )
-            max_similarity_concepts = extract_max_similarity_concept(
-                concept=(concept, concept_chunk_dict[concept]),
-                similarity_concepts=similarity_concepts,
+                if (
+                    max_similarity_concepts is not None
+                    and len(max_similarity_concepts) > 0
+                ):
+                    logger.info(
+                        f"新增加概念 {concept} "
+                        f"最相似概念 llm判断结果：{max_similarity_concepts}"
+                    )
+                    normalized_concept_result = max_similarity_concepts[0]
+            stats["merged"] = normalized_concept_result != concept
+            stats["matched"] = (
+                bool(max_similarity_concepts) if concept_results_similarity else False
             )
-            if max_similarity_concepts is not None and len(max_similarity_concepts) > 0:
-                logger.info(
-                    f"新增加概念 {concept} "
-                    f"最相似概念 llm判断结果：{max_similarity_concepts}"
-                )
-                normalized_concept_result = max_similarity_concepts[0]
-        concept_normalized_dict[concept] = normalized_concept_result
+            stats["normalized_concept"] = normalized_concept_result
+            concept_normalized_dict[concept] = normalized_concept_result
     # 2. 改变对象
     for insert in insert_chunks:
         for con in insert.concepts:

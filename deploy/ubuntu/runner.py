@@ -44,6 +44,9 @@ def configure(project, run, base):
     config["sqlite"]["sqlite_directory"] = str(run / "data/sqlite/neural.db")
     config["chroma"]["persist_directory"] = str(run / "data/chroma")
     config["logging"]["directory"] = str(run / "logs")
+    # Retain the whole run for offline evaluation, including LLM retry/timing logs.
+    config["logging"]["level"] = "DEBUG"
+    config["logging"]["max_bytes"] = 0
     # Only the exported run copy is changed; the Git source cache stays intact.
     config_path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False))
     files = sorted((project / "data/pilot").glob("*.md"))
@@ -126,7 +129,13 @@ def embedding(text):
             )
             return vector
         except Exception:
-            logging.exception("Embedding attempt %d failed", attempt)
+            logging.exception(
+                "Embedding failed model=%s attempt=%d seconds=%.2f chars=%d",
+                EMBEDDING_MODEL,
+                attempt,
+                time.perf_counter() - started,
+                len(text),
+            )
             if attempt == 3:
                 raise
             time.sleep(2 ** (attempt - 1))
@@ -170,13 +179,29 @@ def install_strict_indexer(run):
     def extract(content, id):
         try:
             result = extractor_by_llm(content)
-        except ContentNotExtrator:
-            # Explicit model rejection is distinct from timeout/auth/parser failure.
-            skips.append({"source": id, "content_hash": get_hash_value(content)})
+            return KnowledgeUnit(
+                result.title, result.summary, result.keywords, content, id
+            )
+        except Exception as exc:
+            # Match the normal indexer: keep the original chunk and continue.
+            # Record the reason so export validation can distinguish known skips
+            # from unexplained missing knowledge units. Never serialize SDK errors
+            # verbatim here: they may contain credentials or request contents.
+            skips.append(
+                {
+                    "source": id,
+                    "content_hash": get_hash_value(content),
+                    "reason": "invalid_content"
+                    if isinstance(exc, ContentNotExtrator)
+                    else "extraction_failed",
+                    "error_type": type(exc).__name__,
+                }
+            )
             write_json(run / "skipped-chunks.json", skips)
-            logging.warning("Model classified a chunk as invalid: %s", id)
+            logging.exception(
+                "Knowledge extraction failed; keeping chunk and continuing: %s", id
+            )
             return None
-        return KnowledgeUnit(result.title, result.summary, result.keywords, content, id)
 
     original_relations = indexer.extract_relations_from_text
 
@@ -213,10 +238,20 @@ def build(project, run):
     indexer, skips = install_strict_indexer(run)
     indexer.sqlite_table_create_if_not()
     # Include an empty insight collection for a complete, portable local dataset.
-    from src.config.config import CHROMA_INSIGHT_TABLE_NAME
+    from src.config.config import (
+        CHROMA_CONCEPT_TABLE_NAME,
+        CHROMA_INSIGHT_TABLE_NAME,
+        CHROMA_KNOWLEDGE_TABLE_NAME,
+    )
     from src.get_chroma_collection import get_collection
 
-    get_collection(CHROMA_INSIGHT_TABLE_NAME)
+    # All chunks may legitimately lack knowledge, leaving empty collections.
+    for name in (
+        CHROMA_INSIGHT_TABLE_NAME,
+        CHROMA_KNOWLEDGE_TABLE_NAME,
+        CHROMA_CONCEPT_TABLE_NAME,
+    ):
+        get_collection(name)
     completed: list[str] = []
     for name in files:
         write_json(
@@ -316,7 +351,7 @@ def validate_sqlite(project, run):
     }
     if missing != rejected:
         raise RuntimeError(
-            "Missing knowledge units do not match explicit invalid-chunk records"
+            "Missing knowledge units do not match recorded extraction skips"
         )
     for unit in units:
         if any(not unit[k].strip() for k in ("title", "summary", "embedding_text")):
@@ -415,7 +450,7 @@ def verify(project, run):
     }
     write_json(run / "validation.json", report)
     write_json(run / "status.json", {"status": report["status"]})
-    print(f"Verification passed; explicit invalid chunks: {len(skips)}")
+    print(f"Verification passed; recorded knowledge skips: {len(skips)}")
 
 
 def package(project, run, base):
@@ -439,6 +474,9 @@ def package(project, run, base):
         source.close()
     shutil.copytree(run / "data/chroma", export / "data/chroma")
     shutil.copytree(project / "data/pilot", export / "data/pilot")
+    # Index/verify have exited, so their redacted logs are closed and stable.
+    if (run / "logs").is_dir():
+        shutil.copytree(run / "logs", export / "logs")
     for name in (
         "validation.json",
         "input-manifest.json",
@@ -466,7 +504,7 @@ def package(project, run, base):
     )
     (run / "SUCCESS.txt").write_text(
         f"Archive: {archive}\nSHA256: {checksum}\n"
-        f"Explicit invalid chunks: {len(report['skipped_chunks'])}; "
+        f"Recorded knowledge skips: {len(report['skipped_chunks'])}; "
         "see skipped-chunks.json.\n"
         "This is a NEW corpus. Back up local data, replace SQLite and the entire "
         "Chroma directory, "

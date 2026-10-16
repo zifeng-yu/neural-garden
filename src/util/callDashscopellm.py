@@ -25,6 +25,7 @@ from src.config.config import (
     LLM_TEMPERATURE,
     get_dashscope_api_key,
 )
+from src.util.index_logging import index_stage
 from src.util.llmException import LLMException
 from src.util.retryUtil import retry
 
@@ -179,15 +180,24 @@ def generate(
         f"user_len={len(user_prompt_content)}, "
     )
 
-    # 调用 API
-    try:
-        response = cast(
-            MultiModalConversationResponse, MultiModalConversation.call(**params)
-        )
-    except Exception as e:
-        # 网络层异常（连接错误、超时等）
-        logger.warning(f"[LLM 调用] 网络层异常，将重试：{type(e).__name__}: {e}")
-        raise LLMException(f"Network error: {e}") from e
+    with index_stage(logger, "llm_attempt", model=LLM_MODEL) as call_stats:
+        # 调用 API
+        try:
+            response = cast(
+                MultiModalConversationResponse, MultiModalConversation.call(**params)
+            )
+        except Exception as e:
+            # 网络层异常（连接错误、超时等）
+            logger.warning(f"[LLM 调用] 网络层异常，将重试：{type(e).__name__}: {e}")
+            raise LLMException(f"Network error: {e}") from e
+        call_stats["http_status"] = response.status_code
+        call_stats["outcome"] = "ok" if response.status_code == 200 else "failed"
+        call_stats["request_id"] = getattr(response, "request_id", None)
+        usage = getattr(response, "usage", None)
+        if isinstance(usage, dict):
+            for token_field in ("input_tokens", "output_tokens", "total_tokens"):
+                if isinstance(usage.get(token_field), int):
+                    call_stats[token_field] = usage[token_field]
     # 检查响应状态
     if response.status_code != 200:
         error_msg = f"{response.status_code}: {response.message}"
