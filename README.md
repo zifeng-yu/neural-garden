@@ -171,9 +171,13 @@ retrieval_mode 支持 vector、bm25、hybrid、graph；query 去除首尾空白�
 
 当前没有 Streamable HTTP、远程认证、资源订阅或插件打包。只读标记是行为提示，原文底层查询仍使用普通 SQLite 连接，尚未强制限制整条读取链路的存储权限。
 
+## Ubuntu 离线建库
+
+[部署说明与脚本](deploy/ubuntu/README.md) 支持在 `/home/admin/ng_run/` 拉取 Git 代码，安装锁定依赖，先测试 DashScope 的 LLM/Embedding，再建立独立的 SQLite/Chroma 数据集。默认后台运行，不部署 ES；校验通过后生成下载包及校验和。每次运行使用新目录，技术异常停止，模型判定无效的 chunk 单独记录。API Key 放在服务器私有 `.env`，不进入代码或索引结果包。
+
 ## 测试与评估
 
-项目通过 pytest、Ruff 和 mypy 进行自动化检查，CI 配置位于 [ci.yml](.github/workflows/ci.yml)。2026-10-15 最新本地工作区验证：**258 项测试通过**，Ruff 检查、格式检查及 mypy 通过。混合检索的集合缺失、已有空集合和图检索的英文概念边界匹配均有回归用例。测试仍有一条 DashScope SDK 的 Assistants API 弃用警告，不影响通过。
+项目通过 pytest、Ruff 和 mypy 进行自动化检查，CI 配置位于 [ci.yml](.github/workflows/ci.yml)。2026-10-16 最新本地工作区验证：**274 项测试通过**，Ruff 检查、格式检查及 mypy 通过。混合检索的集合缺失、已有空集合和图检索的英文概念边界匹配均有回归用例；Ubuntu 部署测试覆盖隔离入库、异常传播、缺向量拦截、SQLite WAL 导出及结果包排除凭据。测试仍有一条 DashScope SDK 的 Assistants API 弃用警告，不影响通过。
 
 测试覆盖分块、Repository、向量/BM25/混合检索、图名称匹配与向量回退、一跳扩展与图增强分发、ES 同步、搜索记录事务、RAG 引用与预算、Agent 工具循环、HTTP 契约、指标日期边界及配置加载。测试使用隔离存储和外部调用替身，不调用真实 DashScope 或 ES。
 

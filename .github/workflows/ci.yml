@@ -7,6 +7,9 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      # Keep sync and all uv run steps on the same supported Python minor version.
+      UV_PYTHON: "3.12"
 
     steps:
       - name: Checkout
@@ -19,13 +22,16 @@ jobs:
         run: uv sync --locked
 
       - name: Ruff lint
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests deploy/ubuntu/runner.py
 
       - name: Ruff format
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check src tests deploy/ubuntu/runner.py
+
+      - name: Ubuntu launcher syntax
+        run: bash -n deploy/ubuntu/run.sh
 
       - name: Type check
-        run: uv run mypy src tests
+        run: uv run mypy src tests deploy/ubuntu/runner.py
 
       - name: Test
         run: uv run pytest
